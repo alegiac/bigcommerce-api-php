@@ -470,7 +470,6 @@ class Connection
         if (!is_string($body)) {
             $body = json_encode($body);
         }
-
         $this->initializeRequest();
 
         $handle = tmpfile();

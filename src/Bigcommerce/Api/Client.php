@@ -5,6 +5,7 @@ namespace Bigcommerce\Api;
 use DateTime;
 use Exception;
 use Firebase\JWT\JWT;
+use phpDocumentor\Reflection\Types\Self_;
 
 /**
  * Bigcommerce API Client.
@@ -53,6 +54,8 @@ class Client
      */
     private static $path_prefix = '/api/v2';
 
+    private static $path_prefix_v3 = 'api/v3';
+
     /**
      * Full URL path to the configured store API.
      *
@@ -60,6 +63,7 @@ class Client
      */
     public static $api_path;
     /** @var string The OAuth client ID */
+    public static $api_path_v3;
     private static $client_id;
     /** @var string The store hash */
     private static $store_hash;
@@ -69,6 +73,7 @@ class Client
     private static $client_secret;
     /** @var string URL pathname prefix for the V2 API */
     private static $stores_prefix = '/stores/%s/v2';
+    private static $stores_prefix_v3 = '/stores/%s/v3';
     /** @var string The BigCommerce store management API host */
     private static $api_url = 'https://api.bigcommerce.com';
     /** @var string The BigCommerce merchant login URL */
@@ -122,6 +127,7 @@ class Client
         self::$client_secret = $settings['client_secret'] ?? null;
 
         self::$api_path = self::$api_url . sprintf(self::$stores_prefix, self::$store_hash);
+        self::$api_path_v3 = self::$api_url . sprintf(self::$stores_prefix_v3, self::$store_hash);
         self::$connection = false;
     }
 
@@ -156,6 +162,7 @@ class Client
         self::$api_key = $settings['api_key'];
         self::$store_url = rtrim($settings['store_url'], '/');
         self::$api_path = self::$store_url . self::$path_prefix;
+        self::$api_path_v3 = self::$store_url . self::$path_prefix_v3;
         self::$connection = false;
     }
 
@@ -273,11 +280,10 @@ class Client
      * @param string $resource resource class to map individual items
      * @return mixed array|string mapped collection or XML string if useXml is true
      */
-    public static function getCollection($path, $resource = 'Resource')
+    public static function getCollection($path, $resource = 'Resource', $v='V2')
     {
-        $response = self::connection()->get(self::$api_path . $path);
-
-        return self::mapCollection($resource, $response);
+        $response = self::connection()->get(($v === "V2" ? self::$api_path : self::$api_path_v3) . $path);
+        return self::mapCollection($resource, $response, $v);
     }
 
     /**
@@ -287,11 +293,11 @@ class Client
      * @param string $resource resource class to map individual items
      * @return mixed Resource|string resource object or XML string if useXml is true
      */
-    public static function getResource($path, $resource = 'Resource')
+    public static function getResource($path, $resource = 'Resource',$v='V2')
     {
-        $response = self::connection()->get(self::$api_path . $path);
+        $response = self::connection()->get(($v === "V2" ? self::$api_path : self::$api_path_v3 ). $path);
 
-        return self::mapResource($resource, $response);
+        return self::mapResource($resource, $response, $v);
     }
 
     /**
@@ -300,9 +306,9 @@ class Client
      * @param string $path api endpoint
      * @return mixed int|string count value or XML string if useXml is true
      */
-    public static function getCount($path)
+    public static function getCount($path, $v='V2')
     {
-        $response = self::connection()->get(self::$api_path . $path);
+        $response = self::connection()->get(($v === "V2" ? self::$api_path : self::$api_path_v3 ). $path);
 
         if ($response == false || is_string($response)) {
             return $response;
@@ -311,6 +317,7 @@ class Client
         return $response->count;
     }
 
+
     /**
      * Send a post request to create a resource on the specified collection.
      *
@@ -318,13 +325,18 @@ class Client
      * @param mixed $object object or XML string to create
      * @return mixed
      */
-    public static function createResource($path, $object)
+    public static function createResource($path, $object, $v = 'V2')
     {
         if (is_array($object)) {
             $object = (object)$object;
         }
 
-        return self::connection()->post(self::$api_path . $path, $object);
+        return self::connection()->post(($v === "V2" ? self::$api_path : self::$api_path_v3 ) . $path, $object);
+    }
+
+    public static function upsertResource($path, $object, $v = 'V2')
+    {
+        return self::updateResource($path, $object, $v);
     }
 
     /**
@@ -334,13 +346,13 @@ class Client
      * @param mixed $object object or XML string to update
      * @return mixed
      */
-    public static function updateResource($path, $object)
+    public static function updateResource($path, $object, $v = 'V2')
     {
         if (is_array($object)) {
             $object = (object)$object;
         }
 
-        return self::connection()->put(self::$api_path . $path, $object);
+        return self::connection()->put(($v === "V2" ? self::$api_path : self::$api_path_v3) . $path, [$object]);
     }
 
     /**
@@ -349,9 +361,9 @@ class Client
      * @param string $path api endpoint
      * @return mixed
      */
-    public static function deleteResource($path)
+    public static function deleteResource($path, $v = 'V2')
     {
-        return self::connection()->delete(self::$api_path . $path);
+        return self::connection()->delete(($v === "V2" ? self::$api_path : self::$api_path_v3)  . $path);
     }
 
     /**
@@ -361,15 +373,19 @@ class Client
      * @param mixed $object object collection
      * @return Resource[]
      */
-    private static function mapCollection($resource, $object)
+    private static function mapCollection($resource, $object, $v = 'V2')
     {
+
         if ($object == false || is_string($object)) {
             return $object;
         }
 
+        if ($v === "V3") {
+            $object = $object->data;
+        }
+
         $baseResource = __NAMESPACE__ . '\\' . $resource;
         self::$resource = (class_exists($baseResource)) ? $baseResource : 'Bigcommerce\\Api\\Resources\\' . $resource;
-
         return array_map(array(self::class, 'mapCollectionObject'), $object);
     }
 
@@ -1051,6 +1067,12 @@ class Client
         return self::getResource('/customers/' . $id, 'Customer');
     }
 
+    public static function getCustomerAttributes($filter = array())
+    {
+        $filter = Filter::create($filter);
+        return self::getCollection('/customers/attributes' . $filter->toQuery(), 'CustomerAttribute','V3');
+    }
+
     /**
      * Create a new customer from the given data.
      *
@@ -1060,6 +1082,11 @@ class Client
     public static function createCustomer($object)
     {
         return self::createResource('/customers', $object);
+    }
+
+    public static function createCustomerAttribute($object)
+    {
+        return self::createResource('/customers/attributes', $object);
     }
 
     /**
@@ -1795,6 +1822,22 @@ class Client
     public static function createCustomerAddress($customerID, $object)
     {
         return self::createResource('/customers/' . $customerID . '/addresses', $object);
+    }
+
+    /**
+     * @param $cuatomerID
+     * @param $attributeID
+     * @param $object
+     *
+     * @return mixed
+     */
+    public static function upsertCustomerAttributeValue($customerID, $attributeID, $value)
+    {
+        return self::upsertResource('/customers/attribute-values', [
+            'customer_id' => $customerID,
+            'attribute_id' => $attributeID,
+            'value' => $value
+        ],"V3");
     }
 
     /**

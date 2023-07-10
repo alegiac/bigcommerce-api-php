@@ -34,9 +34,6 @@ class Resource
      */
     protected $fieldMap = array();
 
-    /**
-     * @param \stdClass[]|\stdClass|false $object
-     */
     public function __construct($object = false)
     {
         if (is_array($object)) {
