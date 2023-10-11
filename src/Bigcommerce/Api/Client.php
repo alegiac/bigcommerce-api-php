@@ -54,11 +54,6 @@ class Client
      */
     private static $path_prefix = '/api/v2';
 
-    /**
-     * API V3 path prefix to be added to store URL for requests
-     *
-     * @var string
-     */
     private static $path_prefix_v3 = 'api/v3';
 
     /**
@@ -67,11 +62,8 @@ class Client
      * @var string
      */
     public static $api_path;
-    /**
-     * Full URL path v3 to the configured store API.
-     */
-    public static $api_path_v3;
     /** @var string The OAuth client ID */
+    public static $api_path_v3;
     private static $client_id;
     /** @var string The store hash */
     private static $store_hash;
@@ -81,7 +73,6 @@ class Client
     private static $client_secret;
     /** @var string URL pathname prefix for the V2 API */
     private static $stores_prefix = '/stores/%s/v2';
-    /** @var string URL pathname prefix for the V3 API */
     private static $stores_prefix_v3 = '/stores/%s/v3';
     /** @var string The BigCommerce store management API host */
     private static $api_url = 'https://api.bigcommerce.com';
@@ -340,7 +331,8 @@ class Client
             $object = (object)$object;
         }
 
-        return self::connection()->post(($v === "V2" ? self::$api_path : self::$api_path_v3 ) . $path, $object);
+        $connection = self::connection();
+        return $connection->post(($v === "V2" ? self::$api_path : self::$api_path_v3 ) . $path, $object);
     }
 
     public static function upsertResource($path, $object, $v = 'V2')
@@ -361,7 +353,7 @@ class Client
             $object = (object)$object;
         }
 
-        return self::connection()->put(($v === "V2" ? self::$api_path : self::$api_path_v3) . $path, [$object]);
+        return self::connection()->put(($v === "V2" ? self::$api_path : self::$api_path_v3) . $path, $object);
     }
 
     /**
@@ -382,7 +374,7 @@ class Client
      * @param mixed $object object collection
      * @return Resource[]
      */
-    private static function mapCollection($resource, $object, $v = 'V2')
+    private static function mapCollection($resource, $object, $v = 'V2',$hasNext=null)
     {
 
         if ($object == false || is_string($object)) {
@@ -524,9 +516,10 @@ class Client
      * @param int $id product id
      * @return mixed array|string list of products or XML string if useXml is true
      */
-    public static function getProductImages($id)
+    public static function getProductImages($id, $v='V2')
     {
-        return self::getCollection('/products/' . $id . '/images', 'ProductImage');
+        $subpath = $v === "V2" ? '/products/' : '/catalog/products/';
+        return self::getCollection($subpath . $id . '/images', 'ProductImage',$v);
     }
 
     /**
@@ -628,9 +621,10 @@ class Client
      * @param mixed $object fields to create
      * @return mixed
      */
-    public static function createProduct($object)
+    public static function createProduct($object,$v='V2')
     {
-        return self::createResource('/products', $object);
+        $subpath = $v === "V2" ? '/products' : '/catalog/products';
+        return self::createResource($subpath, $object, $v);
     }
 
     /**
@@ -640,9 +634,29 @@ class Client
      * @param mixed $object fields to update
      * @return mixed
      */
-    public static function updateProduct($id, $object)
+    public static function updateProduct($id, $object,$v='V2')
     {
-        return self::updateResource('/products/' . $id, $object);
+        $subpath = $v === "V2" ? '/products/' : '/catalog/products/';
+        return self::updateResource($subpath. $id, $object, $v);
+    }
+
+    /**
+     * Assign the product to the given channel
+     * @param $productId
+     * @param $channelId
+     * @param $v
+     *
+     * @return mixed
+     */
+    public static function assignProductToChannelId($productId,$channelId,$v="V2")
+    {
+        $object = [
+            'product_id' => $productId,
+            'channel_id' => $channelId,
+        ];
+        $subpath = $v === "V2" ? '/products/' : '/catalog/products/channel-assignments';
+
+        return self::updateResource($subpath, $object, $v);
     }
 
     /**
@@ -1579,9 +1593,10 @@ class Client
      * @param mixed $object
      * @return mixed
      */
-    public static function createProductImage($productId, $object)
+    public static function createProductImage($productId, $object, $v="V2")
     {
-        return self::createResource('/products/' . $productId . '/images', $object);
+        $subpath = $v === "V2" ? '/products/' : '/catalog/products/';
+        return self::createResource($subpath . $productId . '/images', $object, $v);
     }
 
     /**
@@ -1595,6 +1610,24 @@ class Client
     public static function updateProductImage($productId, $imageId, $object)
     {
         return self::updateResource('/products/' . $productId . '/images/' . $imageId, $object);
+    }
+
+    public static function createProductVariant($productId,$object,$v="V2")
+    {
+        $subpath = $v === "V2" ? '/products/' : '/catalog/products/';
+        return self::createResource($subpath.$productId.'/variants', $object, $v);
+    }
+
+    public static function updateProductVariant($productId,$variantId,$object,$v="V2")
+    {
+        $subpath = $v === "V2" ? '/products/' : '/catalog/products/';
+        return self::updateResource($subpath.$productId.'/variants/'.$variantId, $object, $v);
+    }
+
+    public static function getProductVariants($productId,$v="V2")
+    {
+        $subpath = $v === "V2" ? '/products/' : '/catalog/products/';
+        return self::getCollection($subpath.$productId.'/variants', 'Variant', $v);
     }
 
     /**
@@ -1616,8 +1649,9 @@ class Client
      * @param int $imageId
      * @return mixed
      */
-    public static function deleteProductImage($productId, $imageId)
+    public static function deleteProductImage($productId, $imageId, $v="V2")
     {
+
         return self::deleteResource('/products/' . $productId . '/images/' . $imageId);
     }
 
@@ -1919,10 +1953,30 @@ class Client
      * @param int $productId
      * @return mixed
      */
-    public static function getProductOptions($productId)
+    public static function getProductOptions($productId,$v="V2")
     {
-        return self::getCollection('/products/' . $productId . '/options');
+        $subpath = $v === "V2" ? '/products/' : '/catalog/products/';
+        return self::getCollection($subpath . $productId . '/options',"ProductOption",$v);
     }
+
+    public static function setProductOptions($productId,$optionId,$object,$v="V2")
+    {
+        $subpath = $v === "V2" ? '/products/' : '/catalog/products/';
+        return self::updateResource($subpath . $productId . '/options/'.$optionId,$object,$v);
+    }
+
+
+    public static function createProductOption($producId,$name,$type,array $optionValues,$v="V3")
+    {
+        $object = [
+            'name' => $name,
+            'type' => $type,
+            'option_values' => $optionValues,
+        ];
+        $subpath = $v === "V2" ? '/products/' : '/catalog/products/';
+        return self::createResource('$subpath' . $productId . '/options', $object,$v);
+    }
+
 
     /**
      * Return the collection of all option values for a given option.
