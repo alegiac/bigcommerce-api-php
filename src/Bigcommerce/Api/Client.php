@@ -54,6 +54,11 @@ class Client
      */
     private static $path_prefix = '/api/v2';
 
+    /**
+     * API V3 path prefix to be added to store URL for requests
+     *
+     * @var string
+     */
     private static $path_prefix_v3 = 'api/v3';
 
     /**
@@ -62,8 +67,11 @@ class Client
      * @var string
      */
     public static $api_path;
-    /** @var string The OAuth client ID */
+    /**
+     * Full URL path v3 to the configured store API.
+     */
     public static $api_path_v3;
+    /** @var string The OAuth client ID */
     private static $client_id;
     /** @var string The store hash */
     private static $store_hash;
