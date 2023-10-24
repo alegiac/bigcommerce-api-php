@@ -352,7 +352,6 @@ class Client
         if (is_array($object)) {
             $object = (object)$object;
         }
-
         return self::connection()->put(($v === "V2" ? self::$api_path : self::$api_path_v3) . $path, $object);
     }
 
@@ -510,6 +509,35 @@ class Client
         return self::getCollection('/products' . $filter->toQuery(), 'Product');
     }
 
+    public static function getLocations($filter = [])
+    {
+        $filter = Filter::create($filter);
+        return self::getCollection('/inventory/locations', 'Location', 'V3');
+    }
+
+    /**
+     * Create a new location.
+     *
+     * @param mixed $object fields to create
+     * @return mixed
+     */
+    public static function createLocation($object)
+    {
+        return self::createResource('/inventory/locations', $object, 'V3');
+    }
+
+    /**
+     * Update the given product.
+     *
+     * @param int $id product id
+     * @param mixed $object fields to update
+     * @return mixed
+     */
+    public static function updateLocation($id, $object)
+    {
+        return self::updateResource('/inventory/locations/' . $id, $object, 'V3');
+    }
+    
     /**
      * Gets collection of images for a product.
      *
@@ -654,10 +682,26 @@ class Client
             'product_id' => $productId,
             'channel_id' => $channelId,
         ];
+
         $subpath = $v === "V2" ? '/products/' : '/catalog/products/channel-assignments';
 
         return self::updateResource($subpath, $object, $v);
     }
+
+    public static function assignLayoutToProductInChannelId($productId,$channelId,$layoutFile,$v="V2")
+    {
+        $object = [
+            'entity_type' => 'product',
+            'entity_id' => $productId,
+            'channel_id' => $channelId,
+            'file_name' => $layoutFile,
+        ];
+
+        $subpath = $v === "V2" ? '/storefront/custom-template-associations' : '/storefront/custom-template-associations';
+
+        return self::updateResource($subpath, $object, $v);
+    }
+
 
     /**
      * Delete the given product.

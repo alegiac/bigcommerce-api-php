@@ -25,7 +25,7 @@ class Connection
     /**
      * @var CurlHandle cURL resource
      */
-    private $curl;
+    public $curl;
 
     /**
      * @var array<string, string> Hash of HTTP request headers.
@@ -89,6 +89,12 @@ class Connection
      * @var string
      */
     private $contentType;
+
+    /**
+     * Determines the requested url
+     * @var
+     */
+    private $requestUrl;
 
     /**
      * Initializes the connection object.
@@ -295,6 +301,11 @@ class Connection
         curl_setopt($this->curl, CURLOPT_HTTPHEADER, $this->headers);
     }
 
+    public function getRequestUrl()
+    {
+        return $this->requestUrl;
+    }
+
     /**
      * Check the response for possible errors and handle the response body returned.
      *
@@ -305,6 +316,8 @@ class Connection
      */
     private function handleResponse()
     {
+        $this->requestUrl = curl_getinfo($this->curl, CURLINFO_EFFECTIVE_URL);
+
         if (curl_errno($this->curl)) {
             throw new NetworkError(curl_error($this->curl), curl_errno($this->curl), $this->responseHeaders);
         }
