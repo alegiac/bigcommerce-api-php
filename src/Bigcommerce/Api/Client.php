@@ -229,7 +229,9 @@ class Client
      */
     public static function getLastError()
     {
-        return self::connection()->getLastError();
+        $errorData = json_decode(json_encode(self::connection()->getLastError()) , true);
+        dump($errorData);
+        return $errorData['title']. "(".implode(",",$errorData['errors']).")";
     }
 
     /**
@@ -537,7 +539,7 @@ class Client
     {
         return self::updateResource('/inventory/locations/' . $id, $object, 'V3');
     }
-    
+
     /**
      * Gets collection of images for a product.
      *
@@ -685,21 +687,21 @@ class Client
 
         $subpath = $v === "V2" ? '/products/' : '/catalog/products/channel-assignments';
 
-        return self::updateResource($subpath, $object, $v);
+        return self::connection()->put((self::$api_path_v3) . $subpath, [$object]);
+
+
+        //return self::updateResource($subpath, $object, $v);
     }
 
-    public static function assignLayoutToProductInChannelId($productId,$channelId,$layoutFile,$v="V2")
+    public static function assignLayoutToProductInChannelId($productId,$channelId,$layoutFile)
     {
-        $object = [
-            'entity_type' => 'product',
-            'entity_id' => $productId,
-            'channel_id' => $channelId,
-            'file_name' => $layoutFile,
-        ];
+        $object = new \stdClass();
+        $object->entity_type = 'product';
+        $object->entity_id = $productId;
+        $object->channel_id = $channelId;
+        $object->file_name = $layoutFile;
 
-        $subpath = $v === "V2" ? '/storefront/custom-template-associations' : '/storefront/custom-template-associations';
-
-        return self::updateResource($subpath, $object, $v);
+        return self::connection()->put(self::$api_path_v3 . '/storefront/custom-template-associations', [$object]);
     }
 
 
@@ -1656,7 +1658,16 @@ class Client
         return self::updateResource('/products/' . $productId . '/images/' . $imageId, $object);
     }
 
-    public static function createProductVariant($productId,$object,$v="V2")
+    /**
+     * Create a product variant
+     *
+     * @param $productId
+     * @param $object
+     * @param $v
+     *
+     * @return mixed
+     */
+    public static function createProductVariant(int $productId,$object,$v="V2")
     {
         $subpath = $v === "V2" ? '/products/' : '/catalog/products/';
         return self::createResource($subpath.$productId.'/variants', $object, $v);
@@ -1668,10 +1679,23 @@ class Client
         return self::updateResource($subpath.$productId.'/variants/'.$variantId, $object, $v);
     }
 
-    public static function getProductVariants($productId,$v="V2")
+    /**
+     * Delete a produt variant
+     *
+     * @param $productId
+     * @param $variantId
+     *
+     * @return mixed
+     */
+    public static function deleteProductVariant($productId,$variantId)
     {
-        $subpath = $v === "V2" ? '/products/' : '/catalog/products/';
-        return self::getCollection($subpath.$productId.'/variants', 'Variant', $v);
+        return self::deleteResource('/catalog/products/' . $productId . '/variants/' . $variantId, 'V3');
+    }
+
+
+    public static function getProductVariants($productId)
+    {
+        return self::getCollection('/catalog/products/'.$productId.'/variants', 'Variant', 'V3');
     }
 
     /**
