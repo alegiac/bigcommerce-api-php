@@ -1142,15 +1142,9 @@ class Client
         return self::getCollection('/customers/attributes' . $filter->toQuery(), 'CustomerAttribute','V3');
     }
 
-    /**
-     * Create a new customer from the given data.
-     *
-     * @param mixed $object
-     * @return mixed
-     */
-    public static function createCustomer($object)
+    public static function createCustomer($object, $v="V2")
     {
-        return self::createResource('/customers', $object);
+        return self::createResource('/customers', $object, $v);
     }
 
     public static function createCustomerAttribute($object)
