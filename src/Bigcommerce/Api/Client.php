@@ -86,6 +86,7 @@ class Client
      * Accepts OAuth and (for now!) Basic Auth credentials
      *
      * @param array<string, string> $settings
+     *
      * @return void
      */
     public static function configure($settings)
@@ -107,6 +108,7 @@ class Client
      * - store_hash
      *
      * @param array<string, string> $settings
+     *
      * @return void
      * @throws \Exception
      */
@@ -141,6 +143,7 @@ class Client
      * - api_key
      *
      * @param array<string, string> $settings
+     *
      * @return void
      * @throws \Exception
      */
@@ -172,6 +175,7 @@ class Client
      * Note that network faults will always cause an exception to be thrown.
      *
      * @param bool $option sets the value of this flag
+     *
      * @return void
      */
     public static function failOnError($option = true)
@@ -181,6 +185,7 @@ class Client
 
     /**
      * Return XML strings from the API instead of building objects.
+     *
      * @return void
      */
     public static function useXml()
@@ -191,6 +196,7 @@ class Client
     /**
      * Return JSON objects from the API instead of XML Strings.
      * This is the default behavior.
+     *
      * @return void
      */
     public static function useJson()
@@ -202,6 +208,7 @@ class Client
      * Switch SSL certificate verification on requests.
      *
      * @param bool $option sets the value of this flag
+     *
      * @return void
      */
     public static function verifyPeer($option = false)
@@ -212,8 +219,9 @@ class Client
     /**
      * Connect to the internet through a proxy server.
      *
-     * @param string $host host server
+     * @param string   $host host server
      * @param int|bool $port port number to use, or false
+     *
      * @return void
      */
     public static function useProxy($host, $port = false)
@@ -229,9 +237,9 @@ class Client
      */
     public static function getLastError()
     {
-        $errorData = json_decode(json_encode(self::connection()->getLastError()) , true);
+        $errorData = json_decode(json_encode(self::connection()->getLastError()), true);
         dump($errorData);
-        return $errorData['title']. "(".implode(",",$errorData['errors']).")";
+        return $errorData['title'] . "(" . implode(",", $errorData['errors']) . ")";
     }
 
     /**
@@ -268,6 +276,7 @@ class Client
      * Set the HTTP connection object. DANGER: This can screw up your Client!
      *
      * @param Connection|null $connection The connection to use
+     *
      * @return void
      */
     public static function setConnection(Connection $connection = null)
@@ -280,11 +289,12 @@ class Client
      *
      * @param string $path api endpoint
      * @param string $resource resource class to map individual items
+     *
      * @return mixed array|string mapped collection or XML string if useXml is true
      */
-    public static function getCollection($path, $resource = 'Resource', $v='V2')
+    public static function getCollection($path, $resource = 'Resource', $v = 'V2')
     {
-        $response = self::connection()->get(($v === "V2" ? self::$api_path : self::$api_path_v3) . $path);
+        $response = self::connection()->get(( $v === "V2" ? self::$api_path : self::$api_path_v3 ) . $path);
         return self::mapCollection($resource, $response, $v);
     }
 
@@ -293,11 +303,12 @@ class Client
      *
      * @param string $path api endpoint
      * @param string $resource resource class to map individual items
+     *
      * @return mixed Resource|string resource object or XML string if useXml is true
      */
-    public static function getResource($path, $resource = 'Resource',$v='V2')
+    public static function getResource($path, $resource = 'Resource', $v = 'V2')
     {
-        $response = self::connection()->get(($v === "V2" ? self::$api_path : self::$api_path_v3 ). $path);
+        $response = self::connection()->get(( $v === "V2" ? self::$api_path : self::$api_path_v3 ) . $path);
 
         return self::mapResource($resource, $response, $v);
     }
@@ -306,11 +317,12 @@ class Client
      * Get a count value from the specified endpoint.
      *
      * @param string $path api endpoint
+     *
      * @return mixed int|string count value or XML string if useXml is true
      */
-    public static function getCount($path, $v='V2')
+    public static function getCount($path, $v = 'V2')
     {
-        $response = self::connection()->get(($v === "V2" ? self::$api_path : self::$api_path_v3 ). $path);
+        $response = self::connection()->get(( $v === "V2" ? self::$api_path : self::$api_path_v3 ) . $path);
 
         if ($response == false || is_string($response)) {
             return $response;
@@ -324,7 +336,8 @@ class Client
      * Send a post request to create a resource on the specified collection.
      *
      * @param string $path api endpoint
-     * @param mixed $object object or XML string to create
+     * @param mixed  $object object or XML string to create
+     *
      * @return mixed
      */
     public static function createResource($path, $object, $v = 'V2')
@@ -334,7 +347,7 @@ class Client
         }
 
         $connection = self::connection();
-        return $connection->post(($v === "V2" ? self::$api_path : self::$api_path_v3 ) . $path, $object);
+        return $connection->post(( $v === "V2" ? self::$api_path : self::$api_path_v3 ) . $path, $object);
     }
 
     public static function upsertResource($path, $object, $v = 'V2')
@@ -346,7 +359,8 @@ class Client
      * Send a put request to update the specified resource.
      *
      * @param string $path api endpoint
-     * @param mixed $object object or XML string to update
+     * @param mixed  $object object or XML string to update
+     *
      * @return mixed
      */
     public static function updateResource($path, $object, $v = 'V2')
@@ -354,28 +368,30 @@ class Client
         if (is_array($object)) {
             $object = (object)$object;
         }
-        return self::connection()->put(($v === "V2" ? self::$api_path : self::$api_path_v3) . $path, $object);
+        return self::connection()->put(( $v === "V2" ? self::$api_path : self::$api_path_v3 ) . $path, $object);
     }
 
     /**
      * Send a delete request to remove the specified resource.
      *
      * @param string $path api endpoint
+     *
      * @return mixed
      */
     public static function deleteResource($path, $v = 'V2')
     {
-        return self::connection()->delete(($v === "V2" ? self::$api_path : self::$api_path_v3)  . $path);
+        return self::connection()->delete(( $v === "V2" ? self::$api_path : self::$api_path_v3 ) . $path);
     }
 
     /**
      * Internal method to wrap items in a collection to resource classes.
      *
      * @param string $resource name of the resource class
-     * @param mixed $object object collection
+     * @param mixed  $object object collection
+     *
      * @return Resource[]
      */
-    private static function mapCollection($resource, $object, $v = 'V2',$hasNext=null)
+    private static function mapCollection($resource, $object, $v = 'V2', $hasNext = null)
     {
 
         if ($object == false || is_string($object)) {
@@ -387,7 +403,7 @@ class Client
         }
 
         $baseResource = __NAMESPACE__ . '\\' . $resource;
-        self::$resource = (class_exists($baseResource)) ? $baseResource : 'Bigcommerce\\Api\\Resources\\' . $resource;
+        self::$resource = ( class_exists($baseResource) ) ? $baseResource : 'Bigcommerce\\Api\\Resources\\' . $resource;
         return array_map(array(self::class, 'mapCollectionObject'), $object);
     }
 
@@ -395,6 +411,7 @@ class Client
      * Callback for mapping collection objects resource classes.
      *
      * @param \stdClass $object
+     *
      * @return Resource
      */
     private static function mapCollectionObject($object)
@@ -407,8 +424,9 @@ class Client
     /**
      * Map a single object to a resource class.
      *
-     * @param string $resource name of the resource class
+     * @param string    $resource name of the resource class
      * @param \stdClass $object
+     *
      * @return Resource
      */
     private static function mapResource($resource, $object)
@@ -418,7 +436,7 @@ class Client
         }
 
         $baseResource = __NAMESPACE__ . '\\' . $resource;
-        $class = (class_exists($baseResource)) ? $baseResource : 'Bigcommerce\\Api\\Resources\\' . $resource;
+        $class = ( class_exists($baseResource) ) ? $baseResource : 'Bigcommerce\\Api\\Resources\\' . $resource;
         return new $class($object);
     }
 
@@ -426,6 +444,7 @@ class Client
      * Map object representing a count to an integer value.
      *
      * @param \stdClass $object
+     *
      * @return int
      */
     private static function mapCount($object)
@@ -441,6 +460,7 @@ class Client
      * Swaps a temporary access code for a long expiry auth token.
      *
      * @param \stdClass|array $object
+     *
      * @return \stdClass
      */
     public static function getAuthToken($object)
@@ -452,9 +472,10 @@ class Client
     }
 
     /**
-     * @param int $id
+     * @param int    $id
      * @param string $redirectUrl
      * @param string $requestIp
+     *
      * @return string
      */
     public static function getCustomerLoginToken($id, $redirectUrl = '', $requestIp = '')
@@ -503,6 +524,7 @@ class Client
      * Returns the default collection of products.
      *
      * @param array $filter
+     *
      * @return mixed array|string list of products or XML string if useXml is true
      */
     public static function getProducts($filter = array())
@@ -521,6 +543,7 @@ class Client
      * Create a new location.
      *
      * @param mixed $object fields to create
+     *
      * @return mixed
      */
     public static function createLocation($object)
@@ -531,8 +554,9 @@ class Client
     /**
      * Update the given product.
      *
-     * @param int $id product id
+     * @param int   $id product id
      * @param mixed $object fields to update
+     *
      * @return mixed
      */
     public static function updateLocation($id, $object)
@@ -544,18 +568,20 @@ class Client
      * Gets collection of images for a product.
      *
      * @param int $id product id
+     *
      * @return mixed array|string list of products or XML string if useXml is true
      */
-    public static function getProductImages($id, $v='V2')
+    public static function getProductImages($id, $v = 'V2')
     {
         $subpath = $v === "V2" ? '/products/' : '/catalog/products/';
-        return self::getCollection($subpath . $id . '/images', 'ProductImage',$v);
+        return self::getCollection($subpath . $id . '/images', 'ProductImage', $v);
     }
 
     /**
      * Gets collection of custom fields for a product.
      *
      * @param int $id product ID
+     *
      * @return array|string list of products or XML string if useXml is true
      */
     public static function getProductCustomFields($id)
@@ -565,8 +591,10 @@ class Client
 
     /**
      * Returns a single custom field by given id
-     * @param  int $product_id product id
-     * @param  int $id custom field id
+     *
+     * @param int $product_id product id
+     * @param int $id custom field id
+     *
      * @return Resources\ProductCustomField|bool Returns ProductCustomField if exists, false if not exists
      */
     public static function getProductCustomField($product_id, $id)
@@ -577,8 +605,9 @@ class Client
     /**
      * Create a new custom field for a given product.
      *
-     * @param int $product_id product id
+     * @param int   $product_id product id
      * @param mixed $object fields to create
+     *
      * @return Object Object with `id`, `product_id`, `name` and `text` keys
      */
     public static function createProductCustomField($product_id, $object)
@@ -590,6 +619,7 @@ class Client
      * Gets collection of reviews for a product.
      *
      * @param $id
+     *
      * @return mixed
      */
     public static function getProductReviews($id)
@@ -600,9 +630,10 @@ class Client
     /**
      * Update the given custom field.
      *
-     * @param int $product_id product id
-     * @param int $id custom field id
+     * @param int   $product_id product id
+     * @param int   $id custom field id
      * @param mixed $object custom field to update
+     *
      * @return mixed
      */
     public static function updateProductCustomField($product_id, $id, $object)
@@ -615,6 +646,7 @@ class Client
      *
      * @param int $product_id product id
      * @param int $id custom field id
+     *
      * @return mixed
      */
     public static function deleteProductCustomField($product_id, $id)
@@ -626,6 +658,7 @@ class Client
      * Returns the total number of products in the collection.
      *
      * @param array $filter
+     *
      * @return int|string number of products or XML string if useXml is true
      */
     public static function getProductsCount($filter = array())
@@ -638,6 +671,7 @@ class Client
      * Returns a single product resource by the given id.
      *
      * @param int $id product id
+     *
      * @return Resources\Product|string
      */
     public static function getProduct($id)
@@ -649,9 +683,10 @@ class Client
      * Create a new product.
      *
      * @param mixed $object fields to create
+     *
      * @return mixed
      */
-    public static function createProduct($object,$v='V2')
+    public static function createProduct($object, $v = 'V2')
     {
         $subpath = $v === "V2" ? '/products' : '/catalog/products';
         return self::createResource($subpath, $object, $v);
@@ -660,25 +695,27 @@ class Client
     /**
      * Update the given product.
      *
-     * @param int $id product id
+     * @param int   $id product id
      * @param mixed $object fields to update
+     *
      * @return mixed
      */
-    public static function updateProduct($id, $object,$v='V2')
+    public static function updateProduct($id, $object, $v = 'V2')
     {
         $subpath = $v === "V2" ? '/products/' : '/catalog/products/';
-        return self::updateResource($subpath. $id, $object, $v);
+        return self::updateResource($subpath . $id, $object, $v);
     }
 
     /**
      * Assign the product to the given channel
+     *
      * @param $productId
      * @param $channelId
      * @param $v
      *
      * @return mixed
      */
-    public static function assignProductToChannelId($productId,$channelId,$v="V2")
+    public static function assignProductToChannelId($productId, $channelId, $v = "V2")
     {
         $object = [
             'product_id' => $productId,
@@ -687,13 +724,13 @@ class Client
 
         $subpath = $v === "V2" ? '/products/' : '/catalog/products/channel-assignments';
 
-        return self::connection()->put((self::$api_path_v3) . $subpath, [$object]);
+        return self::connection()->put(( self::$api_path_v3 ) . $subpath, [$object]);
 
 
         //return self::updateResource($subpath, $object, $v);
     }
 
-    public static function assignLayoutToProductInChannelId($productId,$channelId,$layoutFile)
+    public static function assignLayoutToProductInChannelId($productId, $channelId, $layoutFile)
     {
         $object = new \stdClass();
         $object->entity_type = 'product';
@@ -709,6 +746,7 @@ class Client
      * Delete the given product.
      *
      * @param int $id product id
+     *
      * @return mixed
      */
     public static function deleteProduct($id)
@@ -730,6 +768,7 @@ class Client
      * Return the collection of options.
      *
      * @param array $filter
+     *
      * @return array
      */
     public static function getOptions($filter = array())
@@ -740,7 +779,9 @@ class Client
 
     /**
      * Create Options
+     *
      * @param $object
+     *
      * @return mixed
      */
     public static function createOption($object)
@@ -751,8 +792,9 @@ class Client
     /**
      * Update the given option.
      *
-     * @param int $id category id
+     * @param int   $id category id
      * @param mixed $object
+     *
      * @return mixed
      */
     public static function updateOption($id, $object)
@@ -774,6 +816,7 @@ class Client
      * Return a single option by given id.
      *
      * @param int $id option id
+     *
      * @return Resources\Option
      */
     public static function getOption($id)
@@ -785,6 +828,7 @@ class Client
      * Delete the given option.
      *
      * @param int $id option id
+     *
      * @return mixed
      */
     public static function deleteOption($id)
@@ -797,6 +841,7 @@ class Client
      *
      * @param int $option_id option id
      * @param int $id value id
+     *
      * @return Resources\OptionValue
      */
     public static function getOptionValue($option_id, $id)
@@ -808,6 +853,7 @@ class Client
      * Return the collection of all option values.
      *
      * @param array $filter
+     *
      * @return array
      */
     public static function getOptionValues($filter = array())
@@ -820,6 +866,7 @@ class Client
      * The collection of categories.
      *
      * @param array $filter
+     *
      * @return array
      */
     public static function getCategories($filter = array())
@@ -832,6 +879,7 @@ class Client
      * The number of categories in the collection.
      *
      * @param array $filter
+     *
      * @return int
      */
     public static function getCategoriesCount($filter = array())
@@ -844,6 +892,7 @@ class Client
      * A single category by given id.
      *
      * @param int $id category id
+     *
      * @return Resources\Category
      */
     public static function getCategory($id)
@@ -855,6 +904,7 @@ class Client
      * Create a new category from the given data.
      *
      * @param mixed $object
+     *
      * @return mixed
      */
     public static function createCategory($object)
@@ -865,8 +915,9 @@ class Client
     /**
      * Update the given category.
      *
-     * @param int $id category id
+     * @param int   $id category id
      * @param mixed $object
+     *
      * @return mixed
      */
     public static function updateCategory($id, $object)
@@ -878,6 +929,7 @@ class Client
      * Delete the given category.
      *
      * @param int $id category id
+     *
      * @return mixed
      */
     public static function deleteCategory($id)
@@ -899,6 +951,7 @@ class Client
      * The collection of brands.
      *
      * @param array $filter
+     *
      * @return array
      */
     public static function getBrands($filter = array())
@@ -911,6 +964,7 @@ class Client
      * The total number of brands in the collection.
      *
      * @param array $filter
+     *
      * @return int
      */
     public static function getBrandsCount($filter = array())
@@ -923,6 +977,7 @@ class Client
      * A single brand by given id.
      *
      * @param int $id brand id
+     *
      * @return Resources\Brand
      */
     public static function getBrand($id)
@@ -934,6 +989,7 @@ class Client
      * Create a new brand from the given data.
      *
      * @param mixed $object
+     *
      * @return mixed
      */
     public static function createBrand($object)
@@ -944,8 +1000,9 @@ class Client
     /**
      * Update the given brand.
      *
-     * @param int $id brand id
+     * @param int   $id brand id
      * @param mixed $object
+     *
      * @return mixed
      */
     public static function updateBrand($id, $object)
@@ -957,6 +1014,7 @@ class Client
      * Delete the given brand.
      *
      * @param int $id brand id
+     *
      * @return mixed
      */
     public static function deleteBrand($id)
@@ -978,6 +1036,7 @@ class Client
      * The collection of orders.
      *
      * @param array $filter
+     *
      * @return array
      */
     public static function getOrders($filter = array())
@@ -990,6 +1049,7 @@ class Client
      * The number of orders in the collection.
      *
      * @param array $filter
+     *
      * @return int
      */
     public static function getOrdersCount($filter = array())
@@ -1002,6 +1062,7 @@ class Client
      * The order count grouped by order status
      *
      * @param array $filter
+     *
      * @return Resources\OrderStatus
      */
     public static function getOrderStatusesWithCounts($filter = array())
@@ -1015,6 +1076,7 @@ class Client
      * A single order.
      *
      * @param int $id order id
+     *
      * @return Resources\Order
      */
     public static function getOrder($id)
@@ -1024,6 +1086,7 @@ class Client
 
     /**
      * @param $orderID
+     *
      * @return mixed
      */
     public static function getOrderProducts($orderID)
@@ -1034,8 +1097,9 @@ class Client
     /**
      * The total number of order products in the collection.
      *
-     * @param $orderID
+     * @param       $orderID
      * @param array $filter
+     *
      * @return mixed
      */
     public static function getOrderProductsCount($orderID, $filter = array())
@@ -1049,6 +1113,7 @@ class Client
      * delete the order).
      *
      * @param int $id order id
+     *
      * @return mixed
      */
     public static function deleteOrder($id)
@@ -1070,6 +1135,7 @@ class Client
      * Create an order
      *
      * @param $object
+     *
      * @return mixed
      */
     public static function createOrder($object)
@@ -1080,8 +1146,9 @@ class Client
     /**
      * Update the given order.
      *
-     * @param int $id order id
+     * @param int   $id order id
      * @param mixed $object fields to update
+     *
      * @return mixed
      */
     public static function updateOrder($id, $object)
@@ -1093,6 +1160,7 @@ class Client
      * The list of customers.
      *
      * @param array $filter
+     *
      * @return array
      */
     public static function getCustomers($filter = array())
@@ -1105,6 +1173,7 @@ class Client
      * The total number of customers in the collection.
      *
      * @param array $filter
+     *
      * @return int
      */
     public static function getCustomersCount($filter = array())
@@ -1117,6 +1186,7 @@ class Client
      * Bulk delete customers.
      *
      * @param array $filter
+     *
      * @return array
      */
     public static function deleteCustomers($filter = array())
@@ -1129,6 +1199,7 @@ class Client
      * A single customer by given id.
      *
      * @param int $id customer id
+     *
      * @return Resources\Customer
      */
     public static function getCustomer($id)
@@ -1139,10 +1210,10 @@ class Client
     public static function getCustomerAttributes($filter = array())
     {
         $filter = Filter::create($filter);
-        return self::getCollection('/customers/attributes' . $filter->toQuery(), 'CustomerAttribute','V3');
+        return self::getCollection('/customers/attributes' . $filter->toQuery(), 'CustomerAttribute', 'V3');
     }
 
-    public static function createCustomer($object, $v="V2")
+    public static function createCustomer($object, $v = "V2")
     {
         return self::createResource('/customers', $object, $v);
     }
@@ -1155,8 +1226,9 @@ class Client
     /**
      * Update the given customer.
      *
-     * @param int $id customer id
+     * @param int   $id customer id
      * @param mixed $object
+     *
      * @return mixed
      */
     public static function updateCustomer($id, $object)
@@ -1168,6 +1240,7 @@ class Client
      * Delete the given customer.
      *
      * @param int $id customer id
+     *
      * @return mixed
      */
     public static function deleteCustomer($id)
@@ -1179,6 +1252,7 @@ class Client
      * A list of addresses belonging to the given customer.
      *
      * @param int $id customer id
+     *
      * @return array
      */
     public static function getCustomerAddresses($id)
@@ -1190,6 +1264,7 @@ class Client
      * Returns the collection of option sets.
      *
      * @param array $filter
+     *
      * @return array
      */
     public static function getOptionSets($filter = array())
@@ -1202,6 +1277,7 @@ class Client
      * Create Optionsets
      *
      * @param $object
+     *
      * @return mixed
      */
     public static function createOptionSet($object)
@@ -1214,6 +1290,7 @@ class Client
      *
      * @param $object
      * @param $id
+     *
      * @return mixed
      */
     public static function createOptionSetOption($object, $id)
@@ -1235,6 +1312,7 @@ class Client
      * A single option set by given id.
      *
      * @param int $id option set id
+     *
      * @return Resources\OptionSet
      */
     public static function getOptionSet($id)
@@ -1245,8 +1323,9 @@ class Client
     /**
      * Update the given option set.
      *
-     * @param int $id option set id
+     * @param int   $id option set id
      * @param mixed $object
+     *
      * @return mixed
      */
     public static function updateOptionSet($id, $object)
@@ -1258,6 +1337,7 @@ class Client
      * Delete the given option set.
      *
      * @param int $id option id
+     *
      * @return mixed
      */
     public static function deleteOptionSet($id)
@@ -1291,6 +1371,7 @@ class Client
      * Get collection of product skus
      *
      * @param array $filter
+     *
      * @return mixed
      */
     public static function getSkus($filter = array())
@@ -1304,6 +1385,7 @@ class Client
      *
      * @param $productId
      * @param $object
+     *
      * @return mixed
      */
     public static function createSku($productId, $object)
@@ -1316,6 +1398,7 @@ class Client
      *
      * @param $id
      * @param $object
+     *
      * @return mixed
      */
     public static function updateSku($id, $object)
@@ -1347,6 +1430,7 @@ class Client
      * Get a single coupon by given id.
      *
      * @param int $id customer id
+     *
      * @return Resources\Coupon
      */
     public static function getCoupon($id)
@@ -1358,6 +1442,7 @@ class Client
      * Get coupons
      *
      * @param array $filter
+     *
      * @return mixed
      */
     public static function getCoupons($filter = array())
@@ -1370,6 +1455,7 @@ class Client
      * Create coupon
      *
      * @param $object
+     *
      * @return mixed
      */
     public static function createCoupon($object)
@@ -1382,6 +1468,7 @@ class Client
      *
      * @param $id
      * @param $object
+     *
      * @return mixed
      */
     public static function updateCoupon($id, $object)
@@ -1393,6 +1480,7 @@ class Client
      * Delete the given coupon.
      *
      * @param int $id coupon id
+     *
      * @return mixed
      */
     public static function deleteCoupon($id)
@@ -1463,6 +1551,7 @@ class Client
      *
      * @param $orderID
      * @param $shipmentID
+     *
      * @return mixed
      */
     public static function getShipment($orderID, $shipmentID)
@@ -1473,8 +1562,9 @@ class Client
     /**
      * Get shipments for a given order
      *
-     * @param $orderID
+     * @param       $orderID
      * @param array $filter
+     *
      * @return mixed
      */
     public static function getShipments($orderID, $filter = array())
@@ -1488,6 +1578,7 @@ class Client
      *
      * @param $orderID
      * @param $object
+     *
      * @return mixed
      */
     public static function createShipment($orderID, $object)
@@ -1501,6 +1592,7 @@ class Client
      * @param $orderID
      * @param $shipmentID
      * @param $object
+     *
      * @return mixed
      */
     public static function updateShipment($orderID, $shipmentID, $object)
@@ -1513,6 +1605,7 @@ class Client
      *
      * @param $orderID
      * @param $shipmentID
+     *
      * @return mixed
      */
     public static function deleteShipment($orderID, $shipmentID)
@@ -1524,6 +1617,7 @@ class Client
      * Delete all Shipments for the given order.
      *
      * @param $orderID
+     *
      * @return mixed
      */
     public static function deleteAllShipmentsForOrder($orderID)
@@ -1534,8 +1628,9 @@ class Client
     /**
      * Get order coupons for a given order
      *
-     * @param $orderID
+     * @param       $orderID
      * @param array $filter
+     *
      * @return mixed
      */
     public static function getOrderCoupons($orderID, $filter = array())
@@ -1549,6 +1644,7 @@ class Client
      *
      * @param $orderID
      * @param $orderShippingAddressID
+     *
      * @return mixed
      */
     public static function getOrderShippingAddress($orderID, $orderShippingAddressID)
@@ -1559,8 +1655,9 @@ class Client
     /**
      * Get order shipping addresses for a given order
      *
-     * @param $orderID
+     * @param       $orderID
      * @param array $filter
+     *
      * @return mixed
      */
     public static function getOrderShippingAddresses($orderID, $filter = array())
@@ -1573,6 +1670,7 @@ class Client
      * Create a new currency.
      *
      * @param mixed $object fields to create
+     *
      * @return mixed
      */
     public static function createCurrency($object)
@@ -1584,6 +1682,7 @@ class Client
      * Returns a single currency resource by the given id.
      *
      * @param int $id currency id
+     *
      * @return Resources\Currency|string
      */
     public static function getCurrency($id)
@@ -1594,8 +1693,9 @@ class Client
     /**
      * Update the given currency.
      *
-     * @param int $id currency id
+     * @param int   $id currency id
      * @param mixed $object fields to update
+     *
      * @return mixed
      */
     public static function updateCurrency($id, $object)
@@ -1607,6 +1707,7 @@ class Client
      * Delete the given currency.
      *
      * @param int $id currency id
+     *
      * @return mixed
      */
     public static function deleteCurrency($id)
@@ -1618,6 +1719,7 @@ class Client
      * Returns the default collection of currencies.
      *
      * @param array $filter
+     *
      * @return mixed array|string list of currencies or XML string if useXml is true
      */
     public static function getCurrencies($filter = array())
@@ -1630,10 +1732,11 @@ class Client
      * Create a new product image.
      *
      * @param string $productId
-     * @param mixed $object
+     * @param mixed  $object
+     *
      * @return mixed
      */
-    public static function createProductImage($productId, $object, $v="V2")
+    public static function createProductImage($productId, $object, $v = "V2")
     {
         $subpath = $v === "V2" ? '/products/' : '/catalog/products/';
         return self::createResource($subpath . $productId . '/images', $object, $v);
@@ -1644,7 +1747,8 @@ class Client
      *
      * @param string $productId
      * @param string $imageId
-     * @param mixed $object
+     * @param mixed  $object
+     *
      * @return mixed
      */
     public static function updateProductImage($productId, $imageId, $object)
@@ -1661,16 +1765,16 @@ class Client
      *
      * @return mixed
      */
-    public static function createProductVariant(int $productId,$object,$v="V2")
+    public static function createProductVariant(int $productId, $object, $v = "V2")
     {
         $subpath = $v === "V2" ? '/products/' : '/catalog/products/';
-        return self::createResource($subpath.$productId.'/variants', $object, $v);
+        return self::createResource($subpath . $productId . '/variants', $object, $v);
     }
 
-    public static function updateProductVariant($productId,$variantId,$object,$v="V2")
+    public static function updateProductVariant($productId, $variantId, $object, $v = "V2")
     {
         $subpath = $v === "V2" ? '/products/' : '/catalog/products/';
-        return self::updateResource($subpath.$productId.'/variants/'.$variantId, $object, $v);
+        return self::updateResource($subpath . $productId . '/variants/' . $variantId, $object, $v);
     }
 
     /**
@@ -1681,7 +1785,7 @@ class Client
      *
      * @return mixed
      */
-    public static function deleteProductVariant($productId,$variantId)
+    public static function deleteProductVariant($productId, $variantId)
     {
         return self::deleteResource('/catalog/products/' . $productId . '/variants/' . $variantId, 'V3');
     }
@@ -1689,7 +1793,7 @@ class Client
 
     public static function getProductVariants($productId)
     {
-        return self::getCollection('/catalog/products/'.$productId.'/variants', 'Variant', 'V3');
+        return self::getCollection('/catalog/products/' . $productId . '/variants', 'Variant', 'V3');
     }
 
     /**
@@ -1697,6 +1801,7 @@ class Client
      *
      * @param int $productId
      * @param int $imageId
+     *
      * @return Resources\ProductImage|string
      */
     public static function getProductImage($productId, $imageId)
@@ -1709,9 +1814,10 @@ class Client
      *
      * @param int $productId
      * @param int $imageId
+     *
      * @return mixed
      */
-    public static function deleteProductImage($productId, $imageId, $v="V2")
+    public static function deleteProductImage($productId, $imageId, $v = "V2")
     {
 
         return self::deleteResource('/products/' . $productId . '/images/' . $imageId);
@@ -1731,6 +1837,7 @@ class Client
      * Get single content pages
      *
      * @param int $pageId
+     *
      * @return mixed
      */
     public static function getPage($pageId)
@@ -1742,6 +1849,7 @@ class Client
      * Create a new content pages
      *
      * @param $object
+     *
      * @return mixed
      */
     public static function createPage($object)
@@ -1753,7 +1861,8 @@ class Client
      * Update an existing content page
      *
      * @param int $pageId
-     * @param $object
+     * @param     $object
+     *
      * @return mixed
      */
     public static function updatePage($pageId, $object)
@@ -1765,6 +1874,7 @@ class Client
      * Delete an existing content page
      *
      * @param int $pageId
+     *
      * @return mixed
      */
     public static function deletePage($pageId)
@@ -1776,6 +1886,7 @@ class Client
      * Create a Gift Certificate
      *
      * @param array $object
+     *
      * @return mixed
      */
     public static function createGiftCertificate($object)
@@ -1787,6 +1898,7 @@ class Client
      * Get a Gift Certificate
      *
      * @param int $giftCertificateId
+     *
      * @return mixed
      */
     public static function getGiftCertificate($giftCertificateId)
@@ -1798,6 +1910,7 @@ class Client
      * Return the collection of all gift certificates.
      *
      * @param array $filter
+     *
      * @return mixed
      */
     public static function getGiftCertificates($filter = array())
@@ -1809,8 +1922,9 @@ class Client
     /**
      * Update a Gift Certificate
      *
-     * @param int $giftCertificateId
+     * @param int   $giftCertificateId
      * @param array $object
+     *
      * @return mixed
      */
     public static function updateGiftCertificate($giftCertificateId, $object)
@@ -1822,6 +1936,7 @@ class Client
      * Delete a Gift Certificate
      *
      * @param int $giftCertificateId
+     *
      * @return mixed
      */
     public static function deleteGiftCertificate($giftCertificateId)
@@ -1842,8 +1957,9 @@ class Client
     /**
      * Create Product Review
      *
-     * @param int $productId
+     * @param int   $productId
      * @param array $object
+     *
      * @return mixed
      */
     public static function createProductReview($productId, $object)
@@ -1855,7 +1971,8 @@ class Client
      * Create Product Bulk Discount rules
      *
      * @param string $productId
-     * @param array $object
+     * @param array  $object
+     *
      * @return mixed
      */
     public static function createProductBulkPricingRules($productId, $object)
@@ -1867,6 +1984,7 @@ class Client
      * Create a Marketing Banner
      *
      * @param array $object
+     *
      * @return mixed
      */
     public static function createMarketingBanner($object)
@@ -1898,6 +2016,7 @@ class Client
      * Delete a specific Marketing Banner
      *
      * @param int $bannerID
+     *
      * @return mixed
      */
     public static function deleteMarketingBanner($bannerID)
@@ -1908,8 +2027,9 @@ class Client
     /**
      * Update an existing banner
      *
-     * @param int $bannerID
+     * @param int   $bannerID
      * @param array $object
+     *
      * @return mixed
      */
     public static function updateMarketingBanner($bannerID, $object)
@@ -1920,8 +2040,9 @@ class Client
     /**
      * Add a address to the customer's address book.
      *
-     * @param int $customerID
+     * @param int   $customerID
      * @param array $object
+     *
      * @return mixed
      */
     public static function createCustomerAddress($customerID, $object)
@@ -1942,14 +2063,15 @@ class Client
             'customer_id' => $customerID,
             'attribute_id' => $attributeID,
             'value' => $value
-        ],"V3");
+        ], "V3");
     }
 
     /**
      * Create a product rule
      *
-     * @param int $productID
+     * @param int   $productID
      * @param array $object
+     *
      * @return mixed
      */
     public static function createProductRule($productID, $object)
@@ -1961,6 +2083,7 @@ class Client
      * Create a customer group.
      *
      * @param array $object
+     *
      * @return mixed
      */
     public static function createCustomerGroup($object)
@@ -1982,6 +2105,7 @@ class Client
      * Delete a customer group
      *
      * @param int $customerGroupId
+     *
      * @return mixed
      */
     public static function deleteCustomerGroup($customerGroupId)
@@ -2013,22 +2137,23 @@ class Client
      * Return the collection of all option values for a given option.
      *
      * @param int $productId
+     *
      * @return mixed
      */
-    public static function getProductOptions($productId,$v="V2")
+    public static function getProductOptions($productId, $v = "V2")
     {
         $subpath = $v === "V2" ? '/products/' : '/catalog/products/';
-        return self::getCollection($subpath . $productId . '/options',"ProductOption",$v);
+        return self::getCollection($subpath . $productId . '/options', "ProductOption", $v);
     }
 
-    public static function setProductOptions($productId,$optionId,$object,$v="V2")
+    public static function setProductOptions($productId, $optionId, $object, $v = "V2")
     {
         $subpath = $v === "V2" ? '/products/' : '/catalog/products/';
-        return self::updateResource($subpath . $productId . '/options/'.$optionId,$object,$v);
+        return self::updateResource($subpath . $productId . '/options/' . $optionId, $object, $v);
     }
 
 
-    public static function createProductOption($producId,$name,$type,array $optionValues,$v="V3")
+    public static function createProductOption($producId, $name, $type, array $optionValues, $v = "V3")
     {
         $object = [
             'name' => $name,
@@ -2036,7 +2161,7 @@ class Client
             'option_values' => $optionValues,
         ];
         $subpath = $v === "V2" ? '/products/' : '/catalog/products/';
-        return self::createResource('$subpath' . $productId . '/options', $object,$v);
+        return self::createResource('$subpath' . $productId . '/options', $object, $v);
     }
 
 
@@ -2045,6 +2170,7 @@ class Client
      *
      * @param int $productId
      * @param int $productOptionId
+     *
      * @return mixed
      */
     public static function getProductOption($productId, $productOptionId)
@@ -2057,6 +2183,7 @@ class Client
      *
      * @param int $productId
      * @param int $productRuleId
+     *
      * @return mixed
      */
     public static function getProductRule($productId, $productRuleId)
@@ -2067,8 +2194,9 @@ class Client
     /**
      * Return the option value object that was created.
      *
-     * @param int $optionId
+     * @param int   $optionId
      * @param array $object
+     *
      * @return mixed
      */
     public static function createOptionValue($optionId, $object)
@@ -2089,9 +2217,10 @@ class Client
     /**
      * Return the option value object that was updated.
      *
-     * @param int $optionId
-     * @param int $optionValueId
+     * @param int   $optionId
+     * @param int   $optionValueId
      * @param array $object
+     *
      * @return mixed
      */
     public static function updateOptionValue($optionId, $optionValueId, $object)
@@ -2116,6 +2245,7 @@ class Client
      * Returns data for a specific web-hook.
      *
      * @param int $id
+     *
      * @return mixed Resource|string resource object or XML string if useXml is true
      */
     public static function getWebhook($id)
@@ -2127,6 +2257,7 @@ class Client
      * Creates a web-hook.
      *
      * @param mixed $object object or XML string to create
+     *
      * @return mixed
      */
     public static function createWebhook($object)
@@ -2137,8 +2268,9 @@ class Client
     /**
      * Updates the given webhook.
      *
-     * @param int $id
+     * @param int   $id
      * @param mixed $object object or XML string to create
+     *
      * @return mixed
      */
     public static function updateWebhook($id, $object)
@@ -2150,6 +2282,7 @@ class Client
      * Delete the given webhook.
      *
      * @param int $id
+     *
      * @return mixed
      */
     public static function deleteWebhook($id)
@@ -2171,6 +2304,7 @@ class Client
      * Return a shipping-zone by id
      *
      * @param int $id shipping-zone id
+     *
      * @return mixed
      */
     public static function getShippingZone($id)
@@ -2183,6 +2317,7 @@ class Client
      * Delete the given shipping-zone
      *
      * @param int $id shipping-zone id
+     *
      * @return mixed
      */
     public static function deleteShippingZone($id)
@@ -2195,17 +2330,19 @@ class Client
      *
      * @param $zoneId
      * @param $methodId
+     *
      * @return mixed
      */
     public static function getShippingMethod($zoneId, $methodId)
     {
-        return self::getResource('/shipping/zones/'. $zoneId . '/methods/'. $methodId, 'ShippingMethod');
+        return self::getResource('/shipping/zones/' . $zoneId . '/methods/' . $methodId, 'ShippingMethod');
     }
 
     /**
      * Return a collection of shipping-methods
      *
      * @param $zoneId
+     *
      * @return mixed
      */
     public static function getShippingMethods($zoneId)
@@ -2219,43 +2356,47 @@ class Client
      *
      * @param $zoneId
      * @param $methodId
+     *
      * @return mixed
      */
     public static function deleteShippingMethod($zoneId, $methodId)
     {
-        return self::deleteResource('/shipping/zones/'. $zoneId . '/methods/'. $methodId);
+        return self::deleteResource('/shipping/zones/' . $zoneId . '/methods/' . $methodId);
     }
 
     /**
      * Get collection of product skus by Product
      *
-     * @param $productId
+     * @param       $productId
      * @param array $filter
+     *
      * @return mixed
      */
     public static function getSkusByProduct($productId, $filter = array())
     {
         $filter = Filter::create($filter);
-        return self::getCollection('/products/'.$productId.'/skus' . $filter->toQuery(), 'Sku');
+        return self::getCollection('/products/' . $productId . '/skus' . $filter->toQuery(), 'Sku');
     }
 
     /**
      * Delete the given optionValue.
      *
      * @param int $optionId
+     *
      * @Param int $valueId
      * @return mixed
      */
     public static function deleteOptionValue($optionId, $valueId)
     {
-        return self::deleteResource('/options/' . $optionId .'/values/'. $valueId);
+        return self::deleteResource('/options/' . $optionId . '/values/' . $valueId);
     }
 
     /**
      * Return the collection of all option values By OptionID
      *
-     * @param int $optionId
+     * @param int   $optionId
      * @param array $filter
+     *
      * @return array
      */
     public static function getOptionValuesByOption($optionId, $filter = array())
@@ -2267,13 +2408,25 @@ class Client
     /**
      * Get collection of product rules by ProductId
      *
-     * @param int $productId
+     * @param int   $productId
      * @param array $filter
+     *
      * @return mixed
      */
     public static function getRulesByProduct($productId, $filter = array())
     {
         $filter = Filter::create($filter);
-        return self::getCollection('/products/'.$productId.'/rules' . $filter->toQuery(), 'Rule');
+        return self::getCollection('/products/' . $productId . '/rules' . $filter->toQuery(), 'Rule');
     }
+
+    static public function createPricelist(array $object)
+    {
+        return self::createResource('/pricelists', $object, "V3");
+    }
+
+    static public function updatePricelist(int $pricelistId, array $object)
+    {
+        return self::updateResource('/pricelists/' . $pricelistId, $object, "V3");
+    }
+
 }
