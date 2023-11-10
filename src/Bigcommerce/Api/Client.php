@@ -2429,4 +2429,17 @@ class Client
         return self::updateResource('/pricelists/' . $pricelistId, $object, "V3");
     }
 
+    /**
+     * Returns the default collection of pricelists
+     *
+     * @param array $filter
+     *
+     * @return mixed array|string list of pricelists
+     */
+    public static function getPricelists($filter = array())
+    {
+        $filter = Filter::create($filter);
+        return self::getCollection('/pricelists' . $filter->toQuery(), 'Pricelist','V3');
+    }
+
 }
