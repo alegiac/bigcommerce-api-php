@@ -238,8 +238,7 @@ class Client
     public static function getLastError()
     {
         $errorData = json_decode(json_encode(self::connection()->getLastError()), true);
-        dump($errorData);
-        return $errorData['title'] . "(" . implode(",", $errorData['errors']) . ")";
+        return $errorData['message'] . "(" . implode(",", $errorData['errors']) . ")";
     }
 
     /**
@@ -1215,7 +1214,8 @@ class Client
 
     public static function createCustomer($object, $v = "V2")
     {
-        return self::createResource('/customers', $object, $v);
+        $connection = self::connection();
+        return $connection->post(self::$api_path_v3  . '/customers', [$object]);
     }
 
     public static function createCustomerAttribute($object)
@@ -2440,6 +2440,19 @@ class Client
     {
         $filter = Filter::create($filter);
         return self::getCollection('/pricelists' . $filter->toQuery(), 'Pricelist','V3');
+    }
+
+    public static function upsertPricelistToCustomerGroup($pricelistId,$customerGroupId,$channelId)
+    {
+        $object = [
+            'customer_group_id' => $customerGroupId,
+            'channel_id' => $channelId,
+        ];
+
+        $subpath = '/pricelists/'.$pricelistId.'/assignments';
+
+        return self::connection()->put(self::$api_path_v3 . $subpath, $object);
+
     }
 
 }
