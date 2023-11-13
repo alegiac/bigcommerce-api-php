@@ -237,8 +237,15 @@ class Client
      */
     public static function getLastError()
     {
+        if ($error = self::connection()->getLastError()) {
+            return $error;
+        }
+        /*
         $errorData = json_decode(json_encode(self::connection()->getLastError()), true);
         return $errorData['message'] . "(" . implode(",", $errorData['errors']) . ")";
+        */
+
+        return false;
     }
 
     /**
@@ -2059,11 +2066,14 @@ class Client
      */
     public static function upsertCustomerAttributeValue($customerID, $attributeID, $value)
     {
-        return self::upsertResource('/customers/attribute-values', [
+
+        $object = [
             'customer_id' => $customerID,
             'attribute_id' => $attributeID,
-            'value' => $value
-        ], "V3");
+            'value' => $value,
+        ];
+
+        return self::connection()->put(self::$api_path_v3.'/customers/attribute-values',[$object]);
     }
 
     /**
