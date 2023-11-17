@@ -2111,6 +2111,16 @@ class Client
         return self::getCollection('/customer_groups');
     }
 
+    public static function getCustomerGroup($id)
+    {
+        return self::getResource('/customer_groups/' . $id,'CustomerGroup');
+    }
+
+    public static function updateCustomerGroup($id, $object)
+    {
+        return self::updateResource('/customer_groups/' . $id, $object);
+    }
+
     /**
      * Delete a customer group
      *
