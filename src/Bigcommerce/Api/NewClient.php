@@ -2,100 +2,99 @@
 
 namespace Bigcommerce\Api;
 
+use Bigcommerce\Api\Exceptions\ClientException;
+use Bigcommerce\Api\Resources\ResourceEnum;
 use DateTime;
 use Exception;
 use Firebase\JWT\JWT;
+use GuzzleHttp\Client;
 use phpDocumentor\Reflection\Types\Self_;
 
 /**
  * Bigcommerce API Client.
  */
-class Client
+class NewClient
 {
-    /**
-     * Full Store URL to connect to
-     *
-     * @var string
-     */
-    private static $store_url;
+    const OAUTH_MODE = 'OAUTH';
+    const BASIC_AUTH_MODE = 'BASIC_AUTH';
 
     /**
-     * Username to connect to the store API with
-     *
-     * @var string
+     * @var string $connectionMode The connection mode to use
+     * @static
      */
-    private static $username;
+    private static string $connectionMode = self::OAUTH_MODE;
+
+    private static bool $useXml = false;
+    private static bool $failOnError = false;
+
+    /**
+     * @var string $storeUrl URL to the store API
+     * @static
+     */
+    private static string $storeUrl;
+
+    private static string $username;
 
     /**
      * API key
      *
      * @var string
      */
-    private static $api_key;
+    private static string $apiKey;
 
     /**
-     * Connection instance
-     *
-     * @var Connection|false
+     * @var \Bigcommerce\Api\Connection|null $connection The HTTP connection object
+     * @static
      */
-    private static $connection;
+    private static ?Connection $connection;
 
     /**
      * Resource class name
      *
      * @var string
      */
-    private static $resource;
+    private static string $resource;
 
-    /**
-     * API path prefix to be added to store URL for requests
-     *
-     * @var string
-     */
-    private static $path_prefix = '/api/v2';
-
-    private static $path_prefix_v3 = 'api/v3';
+    private static string $pathPrefix = 'api/v3';
 
     /**
      * Full URL path to the configured store API.
      *
      * @var string
      */
-    public static $api_path;
+    public static $apiPath;
+    public static $legacyApiPath;
+
     /** @var string The OAuth client ID */
-    public static $api_path_v3;
-    private static $client_id;
+    private static $clientId;
     /** @var string The store hash */
-    private static $store_hash;
+    private static $storeHash;
     /** @var string The OAuth Auth-Token */
-    private static $auth_token;
+    private static $authToken;
     /** @var string */
-    private static $client_secret;
+    private static $clientSecret;
     /** @var string URL pathname prefix for the V2 API */
-    private static $stores_prefix = '/stores/%s/v2';
-    private static $stores_prefix_v3 = '/stores/%s/v3';
+    private static $storesPrefix = '/stores/%s/v3';
+    private static $legacyStoresPrefix = '/stores/%s/v2';
+
     /** @var string The BigCommerce store management API host */
-    private static $api_url = 'https://api.bigcommerce.com';
+    private static $apiUrl = 'https://api.bigcommerce.com';
     /** @var string The BigCommerce merchant login URL */
-    private static $login_url = 'https://login.bigcommerce.com';
+    private static $loginUrl = 'https://login.bigcommerce.com';
 
     /**
-     * Configure the API client with the required settings to access
-     * the API for a store.
+     * Configure the API client with the required Oauth/BasicAuth credentials.
      *
-     * Accepts OAuth and (for now!) Basic Auth credentials
-     *
-     * @param array<string, string> $settings
+     * @param array  $settings
      *
      * @return void
+     * @throws \Bigcommerce\Api\Exceptions\ClientException
+     * @static
      */
-    public static function configure($settings)
+    static public function configure(array $settings): void
     {
-        if (isset($settings['client_id'])) {
-            self::configureOAuth($settings);
-        } else {
-            self::configureBasicAuth($settings);
-        }
+        self::configureBaseSettings($settings);
+        self::$connectionMode === self::OAUTH_MODE ? self::configureOAuth($settings) : self::configureBasicAuth($settings);
     }
 
     /**
@@ -110,98 +109,63 @@ class Client
      * @param array<string, string> $settings
      *
      * @return void
-     * @throws \Exception
+     * @throws \Bigcommerce\Api\Exceptions\ClientException
      */
-    public static function configureOAuth($settings)
+    public static function configureOAuth(array $settings): void
     {
-        if (!isset($settings['auth_token'])) {
-            throw new Exception("'auth_token' must be provided");
-        }
+        if (!isset($settings['auth_token'])) throw new ClientException('NewClient configureOauth: auth_token must be provided');
+        if (!isset($settings['store_hash'])) throw new ClientException( 'NewClient configureOauth: store_hash must be provided');
+        if (!isset($settings['client_id'])) throw new ClientException('NewClient configureOauth: client_id must be provided');
 
-        if (!isset($settings['store_hash'])) {
-            throw new Exception("'store_hash' must be provided");
-        }
-
-        self::$client_id = $settings['client_id'];
-        self::$auth_token = $settings['auth_token'];
-        self::$store_hash = $settings['store_hash'];
-
-        self::$client_secret = $settings['client_secret'] ?? null;
-
-        self::$api_path = self::$api_url . sprintf(self::$stores_prefix, self::$store_hash);
-        self::$api_path_v3 = self::$api_url . sprintf(self::$stores_prefix_v3, self::$store_hash);
-        self::$connection = false;
+        self::$clientSecret = $settings['client_secret'] ?? null;
+        self::$apiPath = self::$apiUrl . sprintf(self::$storesPrefix, self::$storeHash);
     }
 
     /**
-     * Configure the API client with the required credentials.
-     *
-     * Requires a settings array to be passed in with the following keys:
-     *
+     * Configure the API client with the required basic auth credentials.
+     * Requires a settings array to be passed in with the following
+     * keys:
      * - store_url
      * - username
      * - api_key
      *
-     * @param array<string, string> $settings
+     * @param array $settings
      *
      * @return void
-     * @throws \Exception
+     * @throws \Bigcommerce\Api\Exceptions\ClientException
      */
-    public static function configureBasicAuth(array $settings)
+    public static function configureBasicAuth(array $settings):void
     {
-        if (!isset($settings['store_url'])) {
-            throw new Exception("'store_url' must be provided");
-        }
-
-        if (!isset($settings['username'])) {
-            throw new Exception("'username' must be provided");
-        }
-
-        if (!isset($settings['api_key'])) {
-            throw new Exception("'api_key' must be provided");
-        }
+        if (!isset($settings['store_url'])) throw new ClientException('NewClient configureBasicAuth: store_url must be provided');
+        if (!isset($settings['username'])) throw new ClientException('NewClient configureBasicAuth: username must be provided');
+        if (!isset($settings['api_key'])) throw new ClientException('NewClient configureBasicAuth: api_key must be provided');
 
         self::$username = $settings['username'];
-        self::$api_key = $settings['api_key'];
-        self::$store_url = rtrim($settings['store_url'], '/');
-        self::$api_path = self::$store_url . self::$path_prefix;
-        self::$api_path_v3 = self::$store_url . self::$path_prefix_v3;
-        self::$connection = false;
+        self::$apiKey = $settings['api_key'];
+        self::$storeUrl = rtrim($settings['store_url'], '/');
+        self::$apiPath = self::$storeUrl . self::$pathPrefix;
+
     }
 
     /**
-     * Configure the API client to throw exceptions when HTTP errors occur.
+     * Configure base settings for the API client.
+     * Requires a settings array to be passed in with the following
+     * keys:
+     * - use_xml
+     * - fail_on_error
+     * - connection_mode
      *
-     * Note that network faults will always cause an exception to be thrown.
-     *
-     * @param bool $option sets the value of this flag
+     * @param array $settings
      *
      * @return void
      */
-    public static function failOnError($option = true)
+    private static function configureBaseSettings(array $settings): void
     {
-        self::connection()->failOnError($option);
-    }
+        // NOTE: useXml is out of scope in ES
 
-    /**
-     * Return XML strings from the API instead of building objects.
-     *
-     * @return void
-     */
-    public static function useXml()
-    {
-        self::connection()->useXml();
-    }
-
-    /**
-     * Return JSON objects from the API instead of XML Strings.
-     * This is the default behavior.
-     *
-     * @return void
-     */
-    public static function useJson()
-    {
-        self::connection()->useXml(false);
+        //self::$useXml = isset($settings['uee_xml']) && $settings['use_xml'] === true;
+        self::$failOnError = isset($settings['fail_on_error']) && $settings['fail_on_error'] === true;
+        self::$connectionMode = $settings['connection_mode'] ?? self::OAUTH_MODE;
     }
 
     /**
@@ -211,7 +175,7 @@ class Client
      *
      * @return void
      */
-    public static function verifyPeer($option = false)
+    public static function verifyPeer(bool $option = false): void
     {
         self::connection()->verifyPeer($option);
     }
@@ -224,7 +188,7 @@ class Client
      *
      * @return void
      */
-    public static function useProxy($host, $port = false)
+    public static function useProxy(string $host, bool $port = false): void
     {
         self::connection()->useProxy($host, $port);
     }
@@ -254,15 +218,19 @@ class Client
      *
      * @return Connection
      */
-    private static function connection()
+    private static function connection(): Connection
     {
+        // If the connection is not already initialized, create, authorize and configure it.
         if (!self::$connection) {
+
             self::$connection = new Connection();
-            if (self::$client_id) {
-                self::$connection->authenticateOauth(self::$client_id, self::$auth_token);
-            } else {
-                self::$connection->authenticateBasic(self::$username, self::$api_key);
-            }
+            self::$connection->useXml(false );
+            self::$connection->failOnError(self::$failOnError);
+
+            self::$connectionMode === self::OAUTH_MODE ?
+                self::$connection->authenticateOauth(self::$clientId, self::$authToken)
+                :
+                self::$connection->authenticateBasic(self::$username, self::$apiKey);
         }
 
         return self::$connection;
@@ -273,35 +241,24 @@ class Client
      *
      * @return Connection
      */
-    public static function getConnection()
+    public static function getConnection(): Connection
     {
         return self::connection();
     }
 
     /**
-     * Set the HTTP connection object. DANGER: This can screw up your Client!
-     *
-     * @param Connection|null $connection The connection to use
-     *
-     * @return void
-     */
-    public static function setConnection(Connection $connection = null)
-    {
-        self::$connection = $connection;
-    }
-
-    /**
      * Get a collection result from the specified endpoint.
      *
-     * @param string $path api endpoint
-     * @param string $resource resource class to map individual items
+     * @param string                                  $pathWithLeadingSlash
+     * @param \Bigcommerce\Api\Resources\ResourceEnum $resource resource class to map individual items
+     * @param bool                                    $legacy
      *
-     * @return mixed array|string mapped collection or XML string if useXml is true
+     * @return array|string array|string mapped collection or XML string if useXml is true
      */
-    public static function getCollection($path, $resource = 'Resource', $v = 'V2')
+    public static function getCollection(string $pathWithLeadingSlash, ResourceEnum $resource, bool $legacy = false):array|string
     {
-        $response = self::connection()->get(( $v === "V2" ? self::$api_path : self::$api_path_v3 ) . $path);
-        return self::mapCollection($resource, $response, $v);
+        $response = self::connection()->get(self::$apiPath . $pathWithLeadingSlash);
+        return self::mapCollection($resource, $response, $legacy);
     }
 
     /**
@@ -312,11 +269,11 @@ class Client
      *
      * @return mixed Resource|string resource object or XML string if useXml is true
      */
-    public static function getResource($path, $resource = 'Resource', $v = 'V2')
+    public static function getResource(string $path, string $resource = 'Resource', $legacy = false): mixed
     {
-        $response = self::connection()->get(( $v === "V2" ? self::$api_path : self::$api_path_v3 ) . $path);
-
-        return self::mapResource($resource, $response, $v);
+        $composedPath = $legacy ? self::$legacyApiPath . $path : self::$apiPath . $path;
+        $response = self::connection()->get($composedPath);
+        return self::mapResource($resource, $response);
     }
 
     /**
@@ -324,57 +281,46 @@ class Client
      *
      * @param string $path api endpoint
      *
-     * @return mixed int|string count value or XML string if useXml is true
+     * @return string|int|bool int|string count value or XML string if useXml is true
      */
-    public static function getCount($path, $v = 'V2')
+    public static function getCount(string $path, $legacy = false): string|int|bool
     {
-        $response = self::connection()->get(( $v === "V2" ? self::$api_path : self::$api_path_v3 ) . $path);
-
-        if ($response == false || is_string($response)) {
-            return $response;
-        }
-
-        return $response->count;
+        $composedPath = $legacy ? self::$legacyApiPath . $path : self::$apiPath . $path;
+        $response = self::connection()->get($composedPath);
+        return self::mapCount($response);
     }
-
 
     /**
      * Send a post request to create a resource on the specified collection.
      *
      * @param string $path api endpoint
-     * @param mixed  $object object or XML string to create
+     * @param array $object object to create
      *
-     * @return mixed
+     * @return Resource|null
+     * @throws \Exception If the request fails and failOnError is true
      */
-    public static function createResource($path, $object, $v = 'V2')
+    public static function createResource(string $path, array $object, bool $legacy = false): Resource
     {
-        if (is_array($object)) {
-            $object = (object)$object;
-        }
-
-        $connection = self::connection();
-        return $connection->post(( $v === "V2" ? self::$api_path : self::$api_path_v3 ) . $path, $object);
-    }
-
-    public static function upsertResource($path, $object, $v = 'V2')
-    {
-        return self::updateResource($path, $object, $v);
+        $composedPath = $legacy ? self::$legacyApiPath . $path : self::$apiPath . $path;
+        $post = self::connection()->get($composedPath, $object);
+        return self::mapResource(self::$resource, $post);
     }
 
     /**
      * Send a put request to update the specified resource.
      *
      * @param string $path api endpoint
-     * @param mixed  $object object or XML string to update
+     * @param array  $object object or XML string to update
+     * @param bool   $legacy
      *
-     * @return mixed
+     * @return \Bigcommerce\Api\Resource|null
+     * @throws  \Exception If the request fails and failOnError is true
      */
-    public static function updateResource($path, $object, $v = 'V2')
+    public static function updateResource(string $path, array $object, bool $legacy = false): Resource|null
     {
-        if (is_array($object)) {
-            $object = (object)$object;
-        }
-        return self::connection()->put(( $v === "V2" ? self::$api_path : self::$api_path_v3 ) . $path, $object);
+        $composedPath = $legacy ? self::$legacyApiPath . $path : self::$apiPath . $path;
+        $put = self::connection()->put($composedPath, $object);
+        return self::mapResource(self::$resource, $put);
     }
 
     /**
@@ -384,9 +330,9 @@ class Client
      *
      * @return mixed
      */
-    public static function deleteResource($path, $v = 'V2')
+    public static function deleteResource(string $path)
     {
-        return self::connection()->delete(( $v === "V2" ? self::$api_path : self::$api_path_v3 ) . $path);
+        return self::connection()->delete((self::$apiPath ) . $path);
     }
 
     /**
@@ -394,19 +340,14 @@ class Client
      *
      * @param string $resource name of the resource class
      * @param mixed  $object object collection
+     * @param bool   $legacy
      *
-     * @return Resource[]
+     * @return array|null
      */
-    private static function mapCollection($resource, $object, $v = 'V2', $hasNext = null)
+    private static function mapCollection(string $resource, ?array $object, bool $legacy = false): array|null
     {
-
-        if ($object == false || is_string($object)) {
-            return $object;
-        }
-
-        if ($v === "V3") {
-            $object = $object->data;
-        }
+        if (!is_array($object)) return null;
+        if ($legacy !== true && isset($object->data)) $object = $object->data;
 
         $baseResource = __NAMESPACE__ . '\\' . $resource;
         self::$resource = ( class_exists($baseResource) ) ? $baseResource : 'Bigcommerce\\Api\\Resources\\' . $resource;
@@ -435,11 +376,9 @@ class Client
      *
      * @return Resource
      */
-    private static function mapResource($resource, $object)
+    private static function mapResource(string $resource, ?array $object):Resource|null
     {
-        if ($object == false || is_string($object)) {
-            return $object;
-        }
+        if (!is_array($object)) return null;
 
         $baseResource = __NAMESPACE__ . '\\' . $resource;
         $class = ( class_exists($baseResource) ) ? $baseResource : 'Bigcommerce\\Api\\Resources\\' . $resource;
@@ -451,63 +390,12 @@ class Client
      *
      * @param \stdClass $object
      *
-     * @return int
+     * @return int|false
      */
-    private static function mapCount($object)
+    private static function mapCount(?array $object):int|false
     {
-        if ($object == false || is_string($object)) {
-            return $object;
-        }
-
-        return $object->count;
-    }
-
-    /**
-     * Swaps a temporary access code for a long expiry auth token.
-     *
-     * @param \stdClass|array $object
-     *
-     * @return \stdClass
-     */
-    public static function getAuthToken($object)
-    {
-        $context = array_merge(array('grant_type' => 'authorization_code'), (array)$object);
-        $connection = new Connection();
-
-        return $connection->post(self::$login_url . '/oauth2/token', $context);
-    }
-
-    /**
-     * @param int    $id
-     * @param string $redirectUrl
-     * @param string $requestIp
-     *
-     * @return string
-     */
-    public static function getCustomerLoginToken($id, $redirectUrl = '', $requestIp = '')
-    {
-        if (empty(self::$client_secret)) {
-            throw new Exception('Cannot sign customer login tokens without a client secret');
-        }
-
-        $payload = array(
-            'iss' => self::$client_id,
-            'iat' => time(),
-            'jti' => bin2hex(random_bytes(32)),
-            'operation' => 'customer_login',
-            'store_hash' => self::$store_hash,
-            'customer_id' => $id
-        );
-
-        if (!empty($redirectUrl)) {
-            $payload['redirect_to'] = $redirectUrl;
-        }
-
-        if (!empty($requestIp)) {
-            $payload['request_ip'] = $requestIp;
-        }
-
-        return JWT::encode($payload, self::$client_secret, 'HS256');
+        if (!is_array($object)) return false;
+        return $object['count'];
     }
 
     /**
@@ -515,14 +403,10 @@ class Client
      *
      * @return ?DateTime
      */
-    public static function getTime()
+    public static function getTime():DateTime|null
     {
-        $response = self::connection()->get(self::$api_url . '/time');
-
-        if (empty($response)) {
-            return null;
-        }
-
+        $response = self::connection()->get(self::$apiUrl . '/time');
+        if (empty($response)) return null;
         return new DateTime("@{$response}");
     }
 
@@ -533,10 +417,10 @@ class Client
      *
      * @return mixed array|string list of products or XML string if useXml is true
      */
-    public static function getProducts($filter = array())
+    public static function getProducts(array $filter = []):array
     {
         $filter = Filter::create($filter);
-        return self::getCollection('/products' . $filter->toQuery(), 'Product');
+        return self::getCollection('/products' . $filter->toQuery(), ResourceEnum::Product);
     }
 
     public static function getLocations($filter = [])
@@ -688,14 +572,13 @@ class Client
     /**
      * Create a new product.
      *
-     * @param mixed $object fields to create
+     * @param array $productFields Product fields
      *
-     * @return mixed
+     * @return \Bigcommerce\Api\Resources\Product
      */
-    public static function createProduct($object, $v = 'V2')
+    public static function createProduct(array $productFields):Product
     {
-        $subpath = $v === "V2" ? '/products' : '/catalog/products';
-        return self::createResource($subpath, $object, $v);
+        return self::createResource('/products', $productFields);
     }
 
     /**
@@ -715,7 +598,7 @@ class Client
     public static function bulkUpdateProducts($object)
     {
         $subpath = '/catalog/products';
-        return self::$connection->put(self::$api_path_v3 . $subpath, $object);
+        return self::$connection->put(self::$apiPath_v3 . $subpath, $object);
     }
 
     /**
@@ -736,7 +619,7 @@ class Client
 
         $subpath = $v === "V2" ? '/products/' : '/catalog/products/channel-assignments';
 
-        return self::connection()->put(( self::$api_path_v3 ) . $subpath, [$object]);
+        return self::connection()->put(( self::$apiPath_v3 ) . $subpath, [$object]);
 
 
         //return self::updateResource($subpath, $object, $v);
@@ -750,7 +633,7 @@ class Client
         $object->channel_id = $channelId;
         $object->file_name = $layoutFile;
 
-        return self::connection()->put(self::$api_path_v3 . '/storefront/custom-template-associations', [$object]);
+        return self::connection()->put(self::$apiPath_v3 . '/storefront/custom-template-associations', [$object]);
     }
 
 
@@ -1228,7 +1111,7 @@ class Client
     public static function createCustomer($object, $v = "V2")
     {
         $connection = self::connection();
-        return $connection->post(self::$api_path_v3  . '/customers', [$object]);
+        return $connection->post(self::$apiPath_v3  . '/customers', [$object]);
     }
 
     public static function createCustomerAttribute($object)
@@ -1355,7 +1238,7 @@ class Client
      */
     public static function deleteOptionSet($id)
     {
-        Client::deleteResource('/optionsets/' . $id);
+        NewClient::deleteResource('/optionsets/' . $id);
     }
 
     /**
@@ -1531,7 +1414,7 @@ class Client
 
     public static function getStore()
     {
-        $response = self::connection()->get(self::$api_path . '/store');
+        $response = self::connection()->get(self::$apiPath . '/store');
         return $response;
     }
 
@@ -2079,7 +1962,7 @@ class Client
             'value' => $value,
         ];
 
-        return self::connection()->put(self::$api_path_v3.'/customers/attribute-values',[$object]);
+        return self::connection()->put(self::$apiPath_v3.'/customers/attribute-values',[$object]);
     }
 
     /**
@@ -2478,14 +2361,14 @@ class Client
 
         $subpath = '/pricelists/'.$pricelistId.'/assignments';
 
-        return self::connection()->put(self::$api_path_v3 . $subpath, $object);
+        return self::connection()->put(self::$apiPath_v3 . $subpath, $object);
 
     }
 
     public static function upsertPricelistRecords($pricelistId, $records)
     {
         $subpath = '/pricelists/'.$pricelistId.'/records';
-        return self::connection()->put(self::$api_path_v3 . $subpath, [$records]);
+        return self::connection()->put(self::$apiPath_v3 . $subpath, [$records]);
     }
 
     static public function deletePricelist(int $pricelistId)

@@ -3,11 +3,12 @@
 namespace Bigcommerce\Api;
 
 use CurlHandle;
+use GuzzleHttp\Client;
 
 /**
  * HTTP connection.
  */
-class Connection
+class NewConnection
 {
     /**
      * XML media type.
@@ -96,33 +97,14 @@ class Connection
      */
     private $requestUrl;
 
+    private \GuzzleHttp\Client $client;
+
     /**
      * Initializes the connection object.
      */
     public function __construct()
     {
-        if (!defined('STDIN')) {
-            define('STDIN', fopen('php://stdin', 'r'));
-        }
-        $this->curl = curl_init();
-        curl_setopt($this->curl, CURLOPT_HEADERFUNCTION, [$this, 'parseHeader']);
-        curl_setopt($this->curl, CURLOPT_WRITEFUNCTION, [$this, 'parseBody']);
-        curl_setopt($this->curl, CURLOPT_USERAGENT, 'PHP CURL - Bigcommerce API Client');
-
-        // Set to a blank string to make cURL include all encodings it can handle (gzip, deflate, identity) in the 'Accept-Encoding' request header and respect the 'Content-Encoding' response header
-        curl_setopt($this->curl, CURLOPT_ENCODING, '');
-
-        if (!ini_get("open_basedir")) {
-            curl_setopt($this->curl, CURLOPT_FOLLOWLOCATION, true);
-        } else {
-            $this->followLocation = true;
-        }
-
-        $this->setTimeout(60);
-
-
-        $this->client = new \GuzzleHttp\Client();
-
+        $this->client = new Client();
     }
 
     /**
@@ -317,10 +299,6 @@ class Connection
      * on error.
      *
      * @return mixed
-     * @throws ClientError
-     * @throws NetworkError
-     * @throws ServerError
-     * @throws \Exception
      */
     private function handleResponse()
     {
