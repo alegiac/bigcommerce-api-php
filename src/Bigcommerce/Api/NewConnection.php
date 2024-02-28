@@ -2,8 +2,11 @@
 
 namespace Bigcommerce\Api;
 
+use Bigcommerce\Api\Exceptions\ClientException;
+use Bigcommerce\Api\Exceptions\ServerException;
 use CurlHandle;
 use GuzzleHttp\Client;
+use Psr\Http\Message\ResponseInterface;
 
 /**
  * HTTP connection.
@@ -11,13 +14,10 @@ use GuzzleHttp\Client;
 class NewConnection
 {
     /**
-     * XML media type.
-     */
-    const MEDIA_TYPE_XML = 'application/xml';
-    /**
      * JSON media type.
      */
     const MEDIA_TYPE_JSON = 'application/json';
+
     /**
      * Default urlencoded media type.
      */
@@ -39,104 +39,50 @@ class NewConnection
     private $responseHeaders = [];
 
     /**
-     * The status line of the response.
-     * @var string
-     */
-    private $responseStatusLine;
-
-    /**
-     * @var string response body
-     */
-    private $responseBody;
-
-    /**
-     * @var boolean
-     */
-    private $failOnError = false;
-
-    /**
-     * Manually follow location redirects. Used if CURLOPT_FOLLOWLOCATION
-     * is unavailable due to open_basedir restriction.
-     * @var boolean
-     */
-    private $followLocation = false;
-
-    /**
-     * Maximum number of redirects to try.
-     * @var int
-     */
-    private $maxRedirects = 20;
-
-    /**
-     * Number of redirects followed in a loop.
-     * @var int
-     */
-    private $redirectsFollowed = 0;
-
-    /**
-     * Deal with failed requests if failOnError is not set.
-     * @var string|false
-     */
-    private $lastError = false;
-
-    /**
-     * Determines whether the response body should be returned as a raw string.
-     * @var bool
-     */
-    private $rawResponse = false;
-
-    /**
-     * Determines the default content type to use with requests and responses.
-     * @var string
-     */
-    private $contentType;
-
-    /**
      * Determines the requested url
      * @var
      */
     private $requestUrl;
 
+
+    /**
+     * @var bool $responseAsArray Whether to return the response body as an array
+     */
+    private $responseAsArray = false;
+
+    /**
+     * @var \GuzzleHttp\Client $client
+     */
     private \GuzzleHttp\Client $client;
 
     /**
+     * @var string $responseStatusLine The status line of the response.
+     */
+    private string $responseStatusLine;
+
+    /**
+     * @var int $responseStatus HTTP status code
+     */
+    private int $responseStatus;
+
+    /**
+     * @var string response body
+     */
+    private string $responseBody;
+
+
+    /**
      * Initializes the connection object.
-     */
-    public function __construct()
-    {
-        $this->client = new Client();
-    }
-
-    /**
-     * Controls whether requests and responses should be treated
-     * as XML. Defaults to false (using JSON).
      *
-     * @param bool $option the new state of this feature
-     * @return void
+     * @param bool $verifyPeer Whether to verify the peer's SSL certificate
      */
-    public function useXml($option = true)
+    public function __construct(bool $verifyPeer = true)
     {
-        if ($option) {
-            $this->contentType = self::MEDIA_TYPE_XML;
-            $this->rawResponse = true;
-        } else {
-            $this->contentType = self::MEDIA_TYPE_JSON;
-            $this->rawResponse = false;
-        }
-    }
-
-    /**
-     * Controls whether requests or responses should be treated
-     * as urlencoded form data.
-     *
-     * @param bool $option the new state of this feature
-     * @return void
-     */
-    public function useUrlEncoded($option = true)
-    {
-        if ($option) {
-            $this->contentType = self::MEDIA_TYPE_WWW;
-        }
+        $this->client = new \GuzzleHttp\Client();
+        $this->headers = [
+            'Accept' => $this->getContentType(),
+            'Content-Type' => $this->getContentType(),
+        ];
     }
 
     /**
@@ -167,9 +113,9 @@ class NewConnection
      * @param string $password
      * @return void
      */
-    public function authenticateBasic($username, $password)
+    public function authenticateBasic(string $username, string $password): void
     {
-        curl_setopt($this->curl, CURLOPT_USERPWD, "$username:$password");
+        $this->addHeader('Authorization', 'Basic ' . base64_encode("$username:$password"));
     }
 
     /**
@@ -179,49 +125,10 @@ class NewConnection
      * @param string $authToken
      * @return void
      */
-    public function authenticateOauth($clientId, $authToken)
+    public function authenticateOauth(string $clientId, string $authToken): void
     {
         $this->addHeader('X-Auth-Client', $clientId);
         $this->addHeader('X-Auth-Token', $authToken);
-    }
-
-    /**
-     * Set a default timeout for the request. The client will error if the
-     * request takes longer than this to respond.
-     *
-     * @param int $timeout number of seconds to wait on a response
-     * @return void
-     */
-    public function setTimeout($timeout)
-    {
-        curl_setopt($this->curl, CURLOPT_TIMEOUT, $timeout);
-        curl_setopt($this->curl, CURLOPT_CONNECTTIMEOUT, $timeout);
-    }
-
-    /**
-     * Set a proxy server for outgoing requests to tunnel through.
-     *
-     * @param string $server
-     * @param int|bool $port optional port number
-     * @return void
-     */
-    public function useProxy($server, $port = false)
-    {
-        curl_setopt($this->curl, CURLOPT_PROXY, $server);
-
-        if ($port) {
-            curl_setopt($this->curl, CURLOPT_PROXYPORT, $port);
-        }
-    }
-
-    /**
-     * @todo may need to handle CURLOPT_SSL_VERIFYHOST and CURLOPT_CAINFO as well
-     * @param bool $option Whether to verify the peer's SSL certificate
-     * @return void
-     */
-    public function verifyPeer($option = false)
-    {
-        curl_setopt($this->curl, CURLOPT_SSL_VERIFYPEER, $option);
     }
 
     /**
@@ -231,9 +138,9 @@ class NewConnection
      * @param string $value
      * @return void
      */
-    public function addHeader($header, $value)
+    public function addHeader(string $header, string $value): void
     {
-        $this->headers[$header] = "$header: $value";
+        $this->headers[$header] = "$value";
     }
 
     /**
@@ -242,7 +149,7 @@ class NewConnection
      * @param string $header
      * @return void
      */
-    public function removeHeader($header)
+    public function removeHeader(string $header): void
     {
         unset($this->headers[$header]);
     }
@@ -252,7 +159,7 @@ class NewConnection
      *
      * @return array<string, string>
      */
-    public function getRequestHeaders()
+    public function getRequestHeaders(): array
     {
         return $this->headers;
     }
@@ -263,9 +170,9 @@ class NewConnection
      * Defaults to application/json
      * @return string
      */
-    private function getContentType()
+    private function getContentType(): string
     {
-        return ($this->contentType) ? $this->contentType : self::MEDIA_TYPE_JSON;
+        return self::MEDIA_TYPE_JSON;
     }
 
     /**
@@ -273,23 +180,14 @@ class NewConnection
      * making a fresh request.
      * @return void
      */
-    private function initializeRequest()
+    private function initializeClient(): void
     {
         $this->responseBody = '';
+        $this->responseStatus = 0;
+        $this->responseStatusLine = '';
         $this->responseHeaders = [];
-        $this->lastError = false;
+        $this->addHeader('Content-Type', $this->getContentType());
         $this->addHeader('Accept', $this->getContentType());
-
-        curl_setopt($this->curl, CURLOPT_POST, false);
-        curl_setopt($this->curl, CURLOPT_PUT, false);
-        curl_setopt($this->curl, CURLOPT_HTTPGET, false);
-
-        curl_setopt($this->curl, CURLOPT_HTTPHEADER, $this->headers);
-    }
-
-    public function getRequestUrl()
-    {
-        return $this->requestUrl;
     }
 
     /**
@@ -298,142 +196,72 @@ class NewConnection
      * If failOnError is true, a client or server error is raised, otherwise returns false
      * on error.
      *
-     * @return mixed
-     */
-    private function handleResponse()
-    {
-        $this->requestUrl = curl_getinfo($this->curl, CURLINFO_EFFECTIVE_URL);
-
-        if (curl_errno($this->curl)) {
-            throw new NetworkError(curl_error($this->curl), curl_errno($this->curl), $this->responseHeaders);
-        }
-
-        $body = ($this->rawResponse) ? $this->getBody() : json_decode($this->getBody());
-
-        $status = $this->getStatus();
-
-        if ($status >= 400 && $status <= 499) {
-            if ($this->failOnError) {
-                throw new ClientError($body, $status, $this->responseHeaders);
-            } else {
-                $this->lastError = $body;
-                return false;
-            }
-        } elseif ($status >= 500 && $status <= 599) {
-            if ($this->failOnError) {
-                throw new ServerError($body, $status, $this->responseHeaders);
-            } else {
-                $this->lastError = $body;
-                return false;
-            }
-        }
-
-        if ($this->followLocation) {
-            $this->followRedirectPath();
-        }
-
-        return $body;
-    }
-
-    /**
-     * Return an representation of an error returned by the last request, or false
-     * if the last request was not an error.
-     * @return false|string
-     */
-    public function getLastError()
-    {
-        return $this->lastError;
-    }
-
-    /**
-     * Recursively follow redirect until an OK response is received or
-     * the maximum redirects limit is reached.
+     * @param \Psr\Http\Message\ResponseInterface $response
      *
-     * Only 301 and 302 redirects are handled. Redirects from POST and PUT requests will
-     * be converted into GET requests, as per the HTTP spec.
-     * @return void
+     * @return \stdClass
+     * @throws \Bigcommerce\Api\Exceptions\ClientException
+     * @throws \Bigcommerce\Api\Exceptions\ServerException
      */
-    private function followRedirectPath()
+    private function handleResponse(ResponseInterface $response): void
     {
-        $this->redirectsFollowed++;
+        $this->responseStatus = $response->getStatusCode();
+        $this->responseStatusLine = $response->getReasonPhrase();
+        $this->responseHeaders = $response->getHeaders();
+        $this->responseBody = $response->getBody()->getContents();
 
-        if ($this->getStatus() == 301 || $this->getStatus() == 302) {
-            if ($this->redirectsFollowed < $this->maxRedirects) {
-                $location = $this->getHeader('Location');
-                $forwardTo = parse_url($location);
-
-                if (isset($forwardTo['scheme']) && isset($forwardTo['host'])) {
-                    $url = $location;
-                } else {
-                    $forwardFrom = parse_url(curl_getinfo($this->curl, CURLINFO_EFFECTIVE_URL));
-                    $url = $forwardFrom['scheme'] . '://' . $forwardFrom['host'] . $location;
-                }
-
-                $this->get($url);
-            } else {
-                $errorString = "Too many redirects when trying to follow location.";
-                throw new NetworkError($errorString, CURLE_TOO_MANY_REDIRECTS, $this->responseHeaders);
-            }
-        } else {
-            $this->redirectsFollowed = 0;
+        if ($this->responseStatus >= 400 && $this->responseStatus <= 499) {
+            throw new ClientException($this->responseBody, $this->responseStatus);
+        } elseif ($this->responseStatus >= 500 && $this->responseStatus <= 599) {
+            throw new ServerException($this->responseBody, $this->responseStatus);
         }
     }
 
     /**
      * Make an HTTP GET request to the specified endpoint.
      *
-     * @param string $url URL to retrieve
+     * @param string                     $url URL to retrieve
      * @param array<string, string>|bool $query Optional array of query string parameters
      *
-     * @return mixed
+     * @return \stdClass|array
+     * @throws \Bigcommerce\Api\Exceptions\ClientException
+     * @throws \Bigcommerce\Api\Exceptions\ServerException
      */
-    public function get($url, $query = false)
+    public function get(string $url, array $query = null):\stdClass|array
     {
-        $this->initializeRequest();
 
-        if (is_array($query)) {
-            $url .= '?' . http_build_query($query);
-        }
+        if (is_array($query)) $url .= '?' . http_build_query($query);
 
-        curl_setopt($this->curl, CURLOPT_CUSTOMREQUEST, 'GET');
-        curl_setopt($this->curl, CURLOPT_URL, $url);
-        curl_setopt($this->curl, CURLOPT_POST, false);
-        curl_setopt($this->curl, CURLOPT_PUT, false);
-        curl_setopt($this->curl, CURLOPT_HTTPGET, true);
-        curl_exec($this->curl);
+        $this->initializeClient();
+        $response = $this->client->get($url, ['headers' => $this->getRequestHeaders(),]);
+        $this->handleResponse($response);
 
-        return $this->handleResponse();
+        return $this->getBody();
     }
 
     /**
      * Make an HTTP POST request to the specified endpoint.
      *
      * @param string $url URL to which we send the request
-     * @param mixed $body Data payload (JSON string or raw data)
+     * @param mixed  $body Data payload (JSON string or raw data)
      *
      * @return mixed
+     * @throws \Bigcommerce\Api\ClientError
+     * @throws \Bigcommerce\Api\Exceptions\ClientException
+     * @throws \Bigcommerce\Api\Exceptions\ServerException
+     * @throws \Bigcommerce\Api\NetworkError
+     * @throws \Bigcommerce\Api\ServerError
      */
-    public function post($url, $body)
+    public function post(string $url, array $body): \stdClass
     {
-        $this->addHeader('Content-Type', $this->getContentType());
+        $body = json_encode($body);
+        $this->initializeClient();
 
-        if (!is_string($body)) {
-            $body = json_encode($body);
-        }
+        $this->handleResponse($this->client->post($url, [
+            'headers' => $this->getRequestHeaders(),
+            'body' => $body,
+        ]));
 
-        $this->initializeRequest();
-
-        curl_setopt($this->curl, CURLOPT_CUSTOMREQUEST, 'POST');
-        curl_setopt($this->curl, CURLOPT_URL, $url);
-        curl_setopt($this->curl, CURLOPT_POST, true);
-        curl_setopt($this->curl, CURLOPT_PUT, false);
-        curl_setopt($this->curl, CURLOPT_HTTPGET, false);
-        curl_setopt($this->curl, CURLOPT_POSTFIELDS, $body);
-        curl_setopt($this->curl, CURLOPT_CONNECTTIMEOUT, 0);
-        curl_setopt($this->curl, CURLOPT_TIMEOUT, 0);
-        curl_exec($this->curl);
-
-        return $this->handleResponse();
+        return $this->getBody();
     }
 
     /**
@@ -442,16 +270,10 @@ class NewConnection
      * @param string $url URL to which we send the request
      * @return mixed
      */
-    public function head($url)
+    public function head(string $url)
     {
-        $this->initializeRequest();
-
-        curl_setopt($this->curl, CURLOPT_CUSTOMREQUEST, 'HEAD');
-        curl_setopt($this->curl, CURLOPT_URL, $url);
-        curl_setopt($this->curl, CURLOPT_NOBODY, true);
-        curl_exec($this->curl);
-
-        return $this->handleResponse();
+        $this->initializeClient();
+        $this->handleResponse($this->head($url, $this->getHeaders()));
     }
 
     /**
@@ -464,108 +286,29 @@ class NewConnection
      * @param mixed $body Data payload (JSON string or raw data)
      * @return mixed
      */
-    public function put($url, $body)
+    public function put(string $url, array $body):\stdClass|null
     {
-        $this->addHeader('Content-Type', $this->getContentType());
+        $this->initializeClient();
 
-        if (!is_string($body)) {
-            $body = json_encode($body);
-        }
-        $this->initializeRequest();
+        $body = json_encode($body);
+        $this->handleResponse($this->client->put($url, [
+            'headers' => $this->getRequestHeaders(),
+            'body' => $body,
+        ]));
 
-        $handle = tmpfile();
-        fwrite($handle, $body);
-        fseek($handle, 0);
-        curl_setopt($this->curl, CURLOPT_INFILE, $handle);
-        curl_setopt($this->curl, CURLOPT_INFILESIZE, strlen($body));
-
-        curl_setopt($this->curl, CURLOPT_CUSTOMREQUEST, 'PUT');
-        curl_setopt($this->curl, CURLOPT_URL, $url);
-        curl_setopt($this->curl, CURLOPT_HTTPGET, false);
-        curl_setopt($this->curl, CURLOPT_POST, false);
-        curl_setopt($this->curl, CURLOPT_PUT, true);
-        curl_setopt($this->curl, CURLOPT_CONNECTTIMEOUT, 0);
-        curl_setopt($this->curl, CURLOPT_TIMEOUT, 0);
-
-        curl_exec($this->curl);
-
-        fclose($handle);
-        curl_setopt($this->curl, CURLOPT_INFILE, STDIN);
-
-        return $this->handleResponse();
+        return $this->getBody() ?? null;
     }
 
     /**
      * Make an HTTP DELETE request to the specified endpoint.
      *
      * @param string $url URL to which we send the request
-     * @return mixed
+     * @return void
      */
-    public function delete($url)
+    public function delete(string $url): void
     {
-        $this->initializeRequest();
-
-        curl_setopt($this->curl, CURLOPT_PUT, false);
-        curl_setopt($this->curl, CURLOPT_HTTPGET, false);
-        curl_setopt($this->curl, CURLOPT_POST, false);
-        curl_setopt($this->curl, CURLOPT_CUSTOMREQUEST, 'DELETE');
-        curl_setopt($this->curl, CURLOPT_URL, $url);
-        curl_exec($this->curl);
-
-        return $this->handleResponse();
-    }
-
-    /**
-     * Method that appears unused, but is in fact called by curl
-     *
-     * @param CurlHandle $curl
-     * @param string $body
-     * @return int
-     */
-    private function parseBody($curl, $body)
-    {
-        $this->responseBody .= $body;
-        return strlen($body);
-    }
-
-    /**
-     * Method that appears unused, but is in fact called by curl
-     *
-     * @param CurlHandle $curl
-     * @param string $headers
-     * @return int
-     */
-    private function parseHeader($curl, $headers)
-    {
-        if (!$this->responseStatusLine && strpos($headers, 'HTTP/') === 0) {
-            $this->responseStatusLine = $headers;
-        } else {
-            $parts = explode(': ', $headers);
-            if (isset($parts[1])) {
-                $this->responseHeaders[$parts[0]] = trim($parts[1]);
-            }
-        }
-        return strlen($headers);
-    }
-
-    /**
-     * Access the status code of the response.
-     *
-     * @return mixed
-     */
-    public function getStatus()
-    {
-        return curl_getinfo($this->curl, CURLINFO_HTTP_CODE);
-    }
-
-    /**
-     * Access the message string from the status line of the response.
-     *
-     * @return string
-     */
-    public function getStatusMessage()
-    {
-        return $this->responseStatusLine;
+        $this->initializeClient();
+        $this->handleResponse($this->client->delete($url, ['headers' => $this->getRequestHeaders()]));
     }
 
     /**
@@ -573,9 +316,9 @@ class NewConnection
      *
      * @return string
      */
-    public function getBody()
+    public function getBody():mixed
     {
-        return $this->responseBody;
+        return json_decode($this->responseBody);
     }
 
     /**
@@ -585,33 +328,17 @@ class NewConnection
      *
      * @return string|void
      */
-    public function getHeader($header)
+    public function getHeader(string $header)
     {
-        if (array_key_exists($header, $this->responseHeaders)) {
-            return $this->responseHeaders[$header];
-        }
-        // Do case-insensitive search
-        foreach ($this->responseHeaders as $k => $v) {
-            if (strtolower($k) == strtolower($header)) {
-                return $v;
-            }
-        }
+        return $this->responseHeaders[$header] ?? null;
     }
 
     /**
      * Return the full list of response headers
      * @return array<string, string>
      */
-    public function getHeaders()
+    public function getHeaders(): array
     {
         return $this->responseHeaders;
-    }
-
-    /**
-     * Close the cURL resource when the instance is garbage collected
-     */
-    public function __destruct()
-    {
-        curl_close($this->curl);
     }
 }
