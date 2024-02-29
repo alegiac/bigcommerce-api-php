@@ -7,6 +7,7 @@ use Bigcommerce\Api\Resources\Category;
 use Bigcommerce\Api\Resources\Location;
 use Bigcommerce\Api\Resources\Option;
 use Bigcommerce\Api\Resources\OptionValue;
+use Bigcommerce\Api\Resources\ProductCustomField;
 use Bigcommerce\Api\Resources\ProductImage;
 use Bigcommerce\Api\Resources\ProductOption;
 use Bigcommerce\Api\Resources\ResourceEnum;
@@ -235,7 +236,7 @@ class NewClient
     {
         // If the connection is not already initialized, create, authorize and configure it.
         if (!self::$connection) {
-            self::$connection = new NewConnection(self::$verifyPeer);
+            self::$connection = new NewConnection(true);
             self::$connectionMode === self::OAUTH_MODE ?
                 self::$connection->authenticateOauth(self::$clientId, self::$authToken)
                 :
@@ -586,15 +587,14 @@ class NewClient
 
     /**
      * Returns a single custom field by given id
+     * @param int $productId
+     * @param int $customFieldId
      *
-     * @param int $product_id product id
-     * @param int $id custom field id
-     *
-     * @return Resources\ProductCustomField|bool Returns ProductCustomField if exists, false if not exists
+     * @return \Bigcommerce\Api\Resources\ProductCustomField
      */
-    public static function getProductCustomField($product_id, $id)
+    public static function getProductCustomField(int $productId, int $customFieldId): ProductCustomField
     {
-        return self::getResource('/products/' . $product_id . '/custom_fields/' . $id, 'ProductCustomField');
+        return self::getResource('/catalog/products/' . $productId . '/custom-fields/' . $customFieldId, 'ProductCustomField');
     }
 
     /**
@@ -605,9 +605,9 @@ class NewClient
      *
      * @return Object Object with `id`, `product_id`, `name` and `text` keys
      */
-    public static function createProductCustomField($product_id, $object)
+    public static function createProductCustomField(int $productId, array $object): ProductCustomField
     {
-        return self::createResource('/products/' . $product_id . '/custom_fields', $object);
+        return self::createResource('/catalog/products/' . $productId . '/custom-fields', $object, 'ProductCustomField');
     }
 
     /**
@@ -644,9 +644,9 @@ class NewClient
      *
      * @return mixed
      */
-    public static function updateProductCustomField($product_id, $id, $object)
+    public static function updateProductCustomField(int $productId, int $customFieldId, arrray $object): ProductCustomField
     {
-        return self::updateResource('/products/' . $product_id . '/custom_fields/' . $id, $object);
+        return self::updateResource('/catalog/products/' . $productId. '/custom-fields/' . $customFieldId, $object);
     }
 
     /**
@@ -655,11 +655,11 @@ class NewClient
      * @param int $product_id product id
      * @param int $id custom field id
      *
-     * @return mixed
+     * @return void
      */
-    public static function deleteProductCustomField($product_id, $id)
+    public static function deleteProductCustomField(int $productId, int $customFieldId): void
     {
-        return self::deleteResource('/products/' . $product_id . '/custom_fields/' . $id);
+        self::deleteResource('/catalog/products/' . $productId . '/custom-fields/' . $customFieldId);
     }
 
     /**
