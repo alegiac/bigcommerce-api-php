@@ -80,9 +80,17 @@ class Resource
     }
 
     /**
+     * @return array
+     */
+    public function getCreateFieldsToArray(): array
+    {
+        return json_decode(json_encode($this->getCreateFields()), true);
+    }
+
+    /**
      * @return \stdClass
      */
-    public function getCreateFields()
+    public function getCreateFields():\stdClass
     {
         $resource = clone $this->fields;
 
@@ -91,6 +99,14 @@ class Resource
         }
 
         return $resource;
+    }
+
+    /**
+     * @return array
+     */
+    public function getUpdateFieldsToArray(): array
+    {
+        return json_decode(json_encode($this->getUpdateFields()), true);
     }
 
     /**

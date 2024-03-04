@@ -7,6 +7,7 @@ use Bigcommerce\Api\Resources\Category;
 use Bigcommerce\Api\Resources\Location;
 use Bigcommerce\Api\Resources\Option;
 use Bigcommerce\Api\Resources\OptionValue;
+use Bigcommerce\Api\Resources\Pricelist;
 use Bigcommerce\Api\Resources\ProductCustomField;
 use Bigcommerce\Api\Resources\ProductImage;
 use Bigcommerce\Api\Resources\ProductOption;
@@ -2424,14 +2425,14 @@ class NewClient
         return self::getCollection('/products/' . $productId . '/rules' . $filter->toQuery(), 'Rule');
     }
 
-    static public function createPricelist(array $object)
+    static public function createPricelist(array $object): Pricelist
     {
-        return self::createResource('/pricelists', $object, "V3");
+        return self::createResource('/pricelists', $object, "Pricelist");
     }
 
     static public function updatePricelist(int $pricelistId, array $object)
     {
-        return self::updateResource('/pricelists/' . $pricelistId, $object, "V3");
+        return self::updateResource('/pricelists/' . $pricelistId, $object, 'Pricelist');
     }
 
     /**
