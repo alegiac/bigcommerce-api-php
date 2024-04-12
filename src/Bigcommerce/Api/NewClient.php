@@ -7,6 +7,7 @@ use Bigcommerce\Api\Resources\Category;
 use Bigcommerce\Api\Resources\CategoryTree;
 use Bigcommerce\Api\Resources\Customer;
 use Bigcommerce\Api\Resources\CustomerAttribute;
+use Bigcommerce\Api\Resources\CustomerGroup;
 use Bigcommerce\Api\Resources\Location;
 use Bigcommerce\Api\Resources\Option;
 use Bigcommerce\Api\Resources\OptionValue;
@@ -363,7 +364,6 @@ class NewClient
     {
         $composedPath = $legacy ? self::$legacyApiPath . $path : self::$apiPath . $path;
         $put = self::connection()->put($composedPath, $object);
-
         return self::mapResource($resource, $put);
     }
 
@@ -439,6 +439,7 @@ class NewClient
      */
     private static function mapResource(string $resource, \stdClass $object):Resource|null
     {
+
         if (isset($object->data)) $object = $object->data;
         $baseResource = __NAMESPACE__ . '\\' . $resource;
         $class = ( class_exists($baseResource) ) ? $baseResource : 'Bigcommerce\\Api\\Resources\\' . $resource;
@@ -756,15 +757,16 @@ class NewClient
     /**
      * Update the given customer.
      *
+     * @param int $id
      * @param array $object
      *
      * @return \Bigcommerce\Api\Resources\Customer
      * @throws \Bigcommerce\Api\Exceptions\ClientException
      * @throws \Bigcommerce\Api\Exceptions\ServerException
      */
-    public static function updateCustomer(array $object): Customer
+    public static function updateCustomer(int $id, array $object): Customer
     {
-        return self::updateResource('/customers', [$object], 'Customer');
+        return self::updateResource('/customers', [array_merge(['id' => $id], $object)], 'Customer');
     }
 
     /**
@@ -2289,19 +2291,28 @@ class NewClient
      *
      * @return mixed
      */
-    public static function getCustomerGroups()
+    public static function getCustomerGroups(): Collection
     {
-        return self::getCollection('/customer-groups');
+        return self::getCollection('/customer_groups');
     }
 
-    public static function getCustomerGroup($id)
+    /**
+     * Get a customer group by id
+     *
+     * @param int $id
+     * @legacy
+     * @return \Bigcommerce\Api\Resources\CustomerGroup
+     * @throws \Bigcommerce\Api\Exceptions\ClientException
+     * @throws \Bigcommerce\Api\Exceptions\ServerException
+     */
+    public static function getCustomerGroup(int $id): CustomerGroup
     {
-        return self::getResource('/customer_groups/' . $id,'CustomerGroup');
+        return self::getResource('/customer_groups/' . $id, 'CustomerGroup',true);
     }
 
-    public static function updateCustomerGroup($id, $object)
+    public static function updateCustomerGroup(int $id, array $object): CustomerGroup
     {
-        return self::updateResource('/customer_groups/' . $id, $object);
+        return self::updateResource('/customer_groups/' . $id, $object, 'CustomerGroup',true);
     }
 
     /**
