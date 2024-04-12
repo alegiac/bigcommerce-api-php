@@ -548,12 +548,12 @@ class NewClient
      * @param int $pricelistId
      * @param array $records
      *
-     * @return mixed|\stdClass|null
+     * @return void
      */
-    public static function upsertPricelistRecords(int $pricelistId, array $records): array
+    public static function upsertPricelistRecords(int $pricelistId, array $records): void
     {
         $subpath = '/pricelists/'.$pricelistId.'/records';
-        return self::connection()->put(self::$apiPath_v3 . $subpath, [$records]);
+        self::connection()->put(self::$apiPath . $subpath, [$records]);
     }
 
     /**
