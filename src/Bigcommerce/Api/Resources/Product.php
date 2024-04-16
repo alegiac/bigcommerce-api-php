@@ -2,6 +2,7 @@
 
 namespace Bigcommerce\Api\Resources;
 
+use Bigcommerce\Api\NewClient;
 use Bigcommerce\Api\Resource;
 use Bigcommerce\Api\Client;
 
@@ -71,7 +72,8 @@ class Product extends Resource
 
     public function custom_fields()
     {
-        return Client::getCollection($this->fields->custom_fields->resource, 'ProductCustomField');
+        return NewClient::getProductCustomFields($this->id);
+        //return Client::getCollection($this->fields->custom_fields->resource, 'ProductCustomField');
     }
 
     public function configurable_fields()

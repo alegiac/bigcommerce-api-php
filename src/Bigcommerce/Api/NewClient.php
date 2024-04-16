@@ -152,7 +152,7 @@ class NewClient
 
     /**************************************************************************
      * Handling configuration and connection
-     **************************************************************************/
+    **************************************************************************/
 
     /**
      * Configure the API client with the required Oauth/BasicAuth credentials.
@@ -618,6 +618,8 @@ class NewClient
      * @param array $productFields Product fields
      *
      * @return \Bigcommerce\Api\Resources\Product
+     * @throws \Bigcommerce\Api\Exceptions\ClientException
+     * @throws \Bigcommerce\Api\Exceptions\ServerException
      */
     public static function createProduct(array $productFields):Product
     {
@@ -631,8 +633,10 @@ class NewClient
      * @param array $object fields to update
      *
      * @return Product
+     * @throws \Bigcommerce\Api\Exceptions\ClientException
+     * @throws \Bigcommerce\Api\Exceptions\ServerException
      */
-    public static function updateProduct(int $id, array $productFields):Product
+    public static function updateProduct(int $id, array $productFields): Product
     {
         return self::updateResource('/catalog/products/'. $id, $productFields,'Product');
     }

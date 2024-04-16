@@ -14,7 +14,6 @@ class Customer extends Resource
 
     /** @var string[] */
     protected $ignoreOnUpdate = array(
-        'id',
     );
 
     /**

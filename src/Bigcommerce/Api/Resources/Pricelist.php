@@ -3,6 +3,7 @@
 namespace Bigcommerce\Api\Resources;
 
 use Bigcommerce\Api\Resource;
+use Bigcommerce\Api\Client;
 
 /**
  * Represents a single pricelist.

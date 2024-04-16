@@ -43,6 +43,11 @@ class Resource
         $this->id = ($object && isset($object->id)) ? $object->id : 0;
     }
 
+    public function toArray()
+    {
+        return (array) $this->fields;
+    }
+
     /**
      * @param string $field
      * @return null
@@ -80,17 +85,9 @@ class Resource
     }
 
     /**
-     * @return array
-     */
-    public function getCreateFieldsToArray(): array
-    {
-        return json_decode(json_encode($this->getCreateFields()), true);
-    }
-
-    /**
      * @return \stdClass
      */
-    public function getCreateFields():\stdClass
+    public function getCreateFields()
     {
         $resource = clone $this->fields;
 
@@ -99,14 +96,6 @@ class Resource
         }
 
         return $resource;
-    }
-
-    /**
-     * @return array
-     */
-    public function getUpdateFieldsToArray(): array
-    {
-        return json_decode(json_encode($this->getUpdateFields()), true);
     }
 
     /**

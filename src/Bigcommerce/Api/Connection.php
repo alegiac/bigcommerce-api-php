@@ -325,7 +325,7 @@ class Connection
     private function handleResponse()
     {
         $this->requestUrl = curl_getinfo($this->curl, CURLINFO_EFFECTIVE_URL);
-
+        
         if (curl_errno($this->curl)) {
             throw new NetworkError(curl_error($this->curl), curl_errno($this->curl), $this->responseHeaders);
         }
