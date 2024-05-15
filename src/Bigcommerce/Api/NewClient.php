@@ -152,7 +152,7 @@ class NewClient
 
     /**************************************************************************
      * Handling configuration and connection
-    **************************************************************************/
+     **************************************************************************/
 
     /**
      * Configure the API client with the required Oauth/BasicAuth credentials.
@@ -344,6 +344,8 @@ class NewClient
      */
     private static function createResource(string $path, array $object, string $resource, bool $legacy = false): Resource
     {
+        ray('CreateResource',$path,$object,$resource);
+
         $composedPath = $legacy ? self::$legacyApiPath . $path : self::$apiPath . $path;
         $post = self::connection()->post($composedPath, $object);
         return self::mapResource($resource, $post);
@@ -362,6 +364,8 @@ class NewClient
      */
     private static function updateResource(string $path, array $object, string $resource, bool $legacy = false): Resource|null
     {
+        ray('UpdateResource',$path,json_encode($object),$resource);
+
         $composedPath = $legacy ? self::$legacyApiPath . $path : self::$apiPath . $path;
         $put = self::connection()->put($composedPath, $object);
         return self::mapResource($resource, $put);
@@ -378,6 +382,8 @@ class NewClient
      */
     private static function updateRaw(string $path, array $object): void
     {
+        ray('UpdateRaw',$path,json_encode($object));
+
         $composedPath = self::$apiPath . $path;
         $put = self::connection()->put($composedPath, $object);
     }
@@ -553,7 +559,7 @@ class NewClient
     public static function upsertPricelistRecords(int $pricelistId, array $records): void
     {
         $subpath = '/pricelists/'.$pricelistId.'/records';
-        self::connection()->put(self::$apiPath . $subpath, [$records]);
+        self::connection()->put(self::$apiPath . $subpath, $records);
     }
 
     /**
