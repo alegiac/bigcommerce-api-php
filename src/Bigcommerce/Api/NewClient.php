@@ -559,7 +559,7 @@ class NewClient
     public static function upsertPricelistRecords(int $pricelistId, array $records): void
     {
         $subpath = '/pricelists/'.$pricelistId.'/records';
-        self::connection()->put(self::$apiPath . $subpath, [$records]);
+        self::connection()->put(self::$apiPath . $subpath, $records);
     }
 
     /**
