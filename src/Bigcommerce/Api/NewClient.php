@@ -175,7 +175,7 @@ class NewClient
         $context = array_merge(array('grant_type' => 'authorization_code'), (array)$object);
         $connection = new NewConnection();
 
-        return $connection->post(self::$login_url . '/oauth2/token', $context);
+        return $connection->post(self::$loginUrl . '/oauth2/token', $context);
     }
 
     /**
