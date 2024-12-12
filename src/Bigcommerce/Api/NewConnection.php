@@ -44,6 +44,14 @@ class NewConnection
      */
     private $requestUrl;
 
+    /**
+     * Login url for tokenization
+     *
+     * @var string
+     */
+    private static $login_url = 'https://login.bigcommerce.com';
+
+
 
     /**
      * @var bool $responseAsArray Whether to return the response body as an array

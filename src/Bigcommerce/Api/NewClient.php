@@ -157,10 +157,25 @@ class NewClient
      * @throws \Bigcommerce\Api\Exceptions\ClientException
      * @static
      */
-    static public function configure(array $settings): void
+    public static function configure(array $settings): void
     {
         self::configureBaseSettings($settings);
         self::$connectionMode === self::OAUTH_MODE ? self::configureOAuth($settings) : self::configureBasicAuth($settings);
+    }
+
+    /**
+     * Swaps a temporary access code for a long expiry auth token.
+     *
+     * @param \stdClass|array $object
+     *
+     * @return \stdClass
+     */
+    public static function getAuthToken($object)
+    {
+        $context = array_merge(array('grant_type' => 'authorization_code'), (array)$object);
+        $connection = new NewConnection();
+
+        return $connection->post(self::$login_url . '/oauth2/token', $context);
     }
 
     /**
