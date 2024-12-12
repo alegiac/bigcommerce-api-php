@@ -15,16 +15,10 @@ use Bigcommerce\Api\Resources\Pricelist;
 use Bigcommerce\Api\Resources\ProductCustomField;
 use Bigcommerce\Api\Resources\ProductImage;
 use Bigcommerce\Api\Resources\ProductOption;
-use Bigcommerce\Api\Resources\ResourceEnum;
 use Bigcommerce\Api\Resources\ProductVariant;
 use Bigcommerce\Api\Resources\Product;
 use DateTime;
-use Exception;
-use Firebase\JWT\JWT;
-use GuzzleHttp\Client;
-use phpDocumentor\Reflection\Types\Self_;
 use Sabre\DAV\Collection;
-use function Symfony\Component\String\s;
 
 /**
  * Bigcommerce API Client.
@@ -263,7 +257,6 @@ class NewClient
         return self::$connection;
     }
 
-
     /**************************************************************************
      * Handling resource CRUD
      **************************************************************************/
@@ -302,18 +295,19 @@ class NewClient
     /**
      * Get a resource entity from the specified endpoint.
      *
-     * @param string $path api endpoint
-     * @param string $resource resource class to map individual items
+     * @param string      $path api endpoint
+     * @param string|null $resource resource class to map individual items
+     * @param bool        $legacy so use v2/v3
      *
      * @return mixed Resource|string resource object or XML string if useXml is true
      * @throws \Bigcommerce\Api\Exceptions\ClientException
      * @throws \Bigcommerce\Api\Exceptions\ServerException
      */
-    private static function getResource(string $path, string $resource = 'Resource', $legacy = false): mixed
+    private static function getResource(string $path, ?string $resource = 'Resource', bool $legacy = false): mixed
     {
         $composedPath = $legacy ? self::$legacyApiPath . $path : self::$apiPath . $path;
         $response = self::connection()->get($composedPath);
-        return self::mapResource($resource, $response);
+        return (null !== $resource) ? self::mapResource($resource, $response) : $response;
     }
 
     /**
@@ -356,11 +350,10 @@ class NewClient
      *
      * @param string $path api endpoint
      * @param array  $object object or XML string to update
+     * @param string $resource
      * @param bool   $legacy
      *
      * @return \Bigcommerce\Api\Resource|null
-     * @throws \Bigcommerce\Api\Exceptions\ClientException
-     * @throws \Bigcommerce\Api\Exceptions\ServerException
      */
     private static function updateResource(string $path, array $object, string $resource, bool $legacy = false): Resource|null
     {
@@ -373,12 +366,11 @@ class NewClient
 
     /**
      * Perform a not-related resource update.
+     *
      * @param string $path
      * @param array  $object
      *
      * @return void
-     * @throws \Bigcommerce\Api\Exceptions\ClientException
-     * @throws \Bigcommerce\Api\Exceptions\ServerException
      */
     private static function updateRaw(string $path, array $object): void
     {
@@ -455,9 +447,9 @@ class NewClient
     /**
      * Map object representing a count to an integer value.
      *
-     * @param \stdClass $object
+     * @param array|null $object
      *
-     * @return int|false
+     * @return int
      */
     private static function mapCount(?array $object): int
     {
@@ -474,12 +466,24 @@ class NewClient
      * Pings the time endpoint to test the connection to a store.
      *
      * @return ?DateTime
+     * @throws \Bigcommerce\Api\Exceptions\ClientException
+     * @throws \Bigcommerce\Api\Exceptions\ServerException
      */
     public static function getTime():DateTime|null
     {
         $response = self::connection()->get(self::$apiUrl . '/time');
         if (empty($response)) return null;
         return new DateTime("@{$response}");
+    }
+
+
+    /**************************************************************************
+     * CURRENT CUSTOMER JWT
+     **************************************************************************/
+
+    static public function getCurrentCustomerJWT(string $applicationKey): array
+    {
+        return self::getResource('customer/current.jwt?app_client_id='.$applicationKey, null, false);
     }
 
     /**************************************************************************
