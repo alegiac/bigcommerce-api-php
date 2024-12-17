@@ -108,10 +108,10 @@ class NewClient
     private static $authToken;
 
     /**
-     * @var string $clientSecret The OAuth client secret
+     * @var ?string $clientSecret The OAuth client secret
      * @static
      */
-    private static string $clientSecret;
+    private static ?string $clientSecret;
 
     /**
      * @var bool The direcrive to verify peer
@@ -351,7 +351,7 @@ class NewClient
      * @throws \Bigcommerce\Api\Exceptions\ClientException
      * @throws \Bigcommerce\Api\Exceptions\ServerException
      */
-    private static function createResource(string $path, array $object, string $resource, bool $legacy = false): Resource
+    private static function createResource(string $path, array $object, string $resource = 'Resource', bool $legacy = false): Resource
     {
         ray('CreateResource',$path,$object,$resource);
 
