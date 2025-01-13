@@ -208,7 +208,6 @@ class NewConnection
         $this->responseHeaders = $response->getHeaders();
         $this->responseBody = $response->getBody()->getContents();
 
-        ray("Response status ".$this->responseStatus);
         if ($this->responseStatus >= 400 && $this->responseStatus <= 499) {
             throw new ClientException($this->responseBody, $this->responseStatus);
         } elseif ($this->responseStatus >= 500 && $this->responseStatus <= 599) {
@@ -235,7 +234,7 @@ class NewConnection
         $response = $this->client->get($url, ['headers' => $this->getRequestHeaders(),]);
         $this->handleResponse($response);
 
-        return $this->getBody();
+        return $this->getBody() ?? [];
     }
 
     /**
