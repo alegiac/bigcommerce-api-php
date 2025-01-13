@@ -290,7 +290,14 @@ class NewClient
     private static function getCollection(string $pathWithLeadingSlash, string $resource = 'Resource', bool $legacy = false): array
     {
         $needsNext = false;
-        $response = self::connection()->get(self::$apiPath . $pathWithLeadingSlash);
+        $composedPath = $legacy ? self::$legacyApiPath : self::$apiPath;
+
+        $response = self::connection()->get(url: $composedPath . $pathWithLeadingSlash);
+
+        if($legacy) {
+            return self::mapCollection($resource, $response);
+        }
+
         $data = $response->data;
         $pagination = $response->meta->pagination;
         if (isset($pagination->links->next)) {
@@ -304,7 +311,7 @@ class NewClient
             }
         }
 
-        return self::mapCollection($resource, $data, $legacy);
+        return self::mapCollection($resource, $data);
     }
 
     /**
@@ -416,11 +423,10 @@ class NewClient
      *
      * @param string $resource name of the resource class
      * @param mixed  $object object collection
-     * @param bool   $legacy
      *
      * @return array|null
      */
-    private static function mapCollection(string $resource, array $object, bool $legacy = false): array|null
+    private static function mapCollection(string $resource, array $object): array|null
     {
         if (!is_array($object)) return null;
 
@@ -452,7 +458,6 @@ class NewClient
      */
     private static function mapResource(string $resource, \stdClass $object):Resource|null
     {
-
         if (isset($object->data)) $object = $object->data;
         $baseResource = __NAMESPACE__ . '\\' . $resource;
         $class = ( class_exists($baseResource) ) ? $baseResource : 'Bigcommerce\\Api\\Resources\\' . $resource;
@@ -1322,7 +1327,7 @@ class NewClient
     public static function getOrders($filter = array())
     {
         $filter = Filter::create($filter);
-        return self::getCollection('/orders' . $filter->toQuery(), 'Order');
+        return self::getCollection('/orders' . $filter->toQuery(), 'Order', legacy: true);
     }
 
     /**
@@ -1361,7 +1366,7 @@ class NewClient
      */
     public static function getOrder($id)
     {
-        return self::getResource('/orders/' . $id, 'Order');
+        return self::getResource('/orders/' . $id, 'Order', legacy: true);
     }
 
     /**
@@ -1371,7 +1376,7 @@ class NewClient
      */
     public static function getOrderProducts($orderID)
     {
-        return self::getCollection('/orders/' . $orderID . '/products', 'OrderProduct');
+        return self::getCollection('/orders/' . $orderID . '/products', 'OrderProduct', legacy: true);
     }
 
     /**
@@ -1813,7 +1818,7 @@ class NewClient
     public static function getOrderCoupons($orderID, $filter = array())
     {
         $filter = Filter::create($filter);
-        return self::getCollection('/orders/' . $orderID . '/coupons' . $filter->toQuery(), 'OrderCoupons');
+        return self::getCollection('/orders/' . $orderID . '/coupons' . $filter->toQuery(), 'OrderCoupons', legacy: true);
     }
 
     /**
@@ -1840,7 +1845,7 @@ class NewClient
     public static function getOrderShippingAddresses($orderID, $filter = array())
     {
         $filter = Filter::create($filter);
-        return self::getCollection('/orders/' . $orderID . '/shipping_addresses' . $filter->toQuery(), 'Address');
+        return self::getCollection('/orders/' . $orderID . '/shipping_addresses' . $filter->toQuery(), 'Address', legacy: true);
     }
 
     /**
