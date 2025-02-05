@@ -15,10 +15,18 @@ use Bigcommerce\Api\Resources\Pricelist;
 use Bigcommerce\Api\Resources\ProductCustomField;
 use Bigcommerce\Api\Resources\ProductImage;
 use Bigcommerce\Api\Resources\ProductOption;
+use Bigcommerce\Api\Resources\ResourceEnum;
 use Bigcommerce\Api\Resources\ProductVariant;
 use Bigcommerce\Api\Resources\Product;
 use DateTime;
+use Exception;
+use Firebase\JWT\JWT;
+use GuzzleHttp\Client;
+use phpDocumentor\Reflection\Types\Self_;
 use Sabre\DAV\Collection;
+use Throwable;
+
+use function Symfony\Component\String\s;
 
 /**
  * Bigcommerce API Client.
@@ -108,10 +116,10 @@ class NewClient
     private static $authToken;
 
     /**
-     * @var ?string $clientSecret The OAuth client secret
+     * @var string $clientSecret The OAuth client secret
      * @static
      */
-    private static ?string $clientSecret;
+    private static string $clientSecret;
 
     /**
      * @var bool The direcrive to verify peer
@@ -157,25 +165,10 @@ class NewClient
      * @throws \Bigcommerce\Api\Exceptions\ClientException
      * @static
      */
-    public static function configure(array $settings): void
+    static public function configure(array $settings): void
     {
         self::configureBaseSettings($settings);
         self::$connectionMode === self::OAUTH_MODE ? self::configureOAuth($settings) : self::configureBasicAuth($settings);
-    }
-
-    /**
-     * Swaps a temporary access code for a long expiry auth token.
-     *
-     * @param \stdClass|array $object
-     *
-     * @return \stdClass
-     */
-    public static function getAuthToken($object)
-    {
-        $context = array_merge(array('grant_type' => 'authorization_code'), (array)$object);
-        $connection = new NewConnection();
-
-        return $connection->post(self::$loginUrl . '/oauth2/token', $context);
     }
 
     /**
@@ -195,7 +188,7 @@ class NewClient
     public static function configureOAuth(array $settings): void
     {
         if (!isset($settings['auth_token'])) throw new ClientException('NewClient configureOauth: auth_token must be provided');
-        if (!isset($settings['store_hash'])) throw new ClientException( 'NewClient configureOauth: store_hash must be provided');
+        if (!isset($settings['store_hash'])) throw new ClientException('NewClient configureOauth: store_hash must be provided');
         if (!isset($settings['client_id'])) throw new ClientException('NewClient configureOauth: client_id must be provided');
 
         self::$clientId = $settings['client_id'];
@@ -222,7 +215,7 @@ class NewClient
      * @return void
      * @throws \Bigcommerce\Api\Exceptions\ClientException
      */
-    public static function configureBasicAuth(array $settings):void
+    public static function configureBasicAuth(array $settings): void
     {
         if (!isset($settings['store_url'])) throw new ClientException('NewClient configureBasicAuth: store_url must be provided');
         if (!isset($settings['username'])) throw new ClientException('NewClient configureBasicAuth: username must be provided');
@@ -272,6 +265,7 @@ class NewClient
         return self::$connection;
     }
 
+
     /**************************************************************************
      * Handling resource CRUD
      **************************************************************************/
@@ -290,46 +284,38 @@ class NewClient
     private static function getCollection(string $pathWithLeadingSlash, string $resource = 'Resource', bool $legacy = false): array
     {
         $needsNext = false;
-        $composedPath = $legacy ? self::$legacyApiPath : self::$apiPath;
-
-        $response = self::connection()->get(url: $composedPath . $pathWithLeadingSlash);
-
-        if($legacy) {
-            return self::mapCollection($resource, $response);
-        }
-
+        $response = self::connection()->get(self::$apiPath . $pathWithLeadingSlash);
         $data = $response->data;
         $pagination = $response->meta->pagination;
         if (isset($pagination->links->next)) {
             $needsNext = true;
             while ($needsNext) {
                 $next = $pagination->links->next;
-                $response = self::connection()->get(self::$apiPath.$pathWithLeadingSlash.$next);
+                $response = self::connection()->get(self::$apiPath . $pathWithLeadingSlash . $next);
                 $data = array_merge($data, $response->data);
                 $pagination = $response->meta->pagination;
                 if (!isset($pagination->links->next)) $needsNext = false;
             }
         }
 
-        return self::mapCollection($resource, $data);
+        return self::mapCollection($resource, $data, $legacy);
     }
 
     /**
      * Get a resource entity from the specified endpoint.
      *
-     * @param string      $path api endpoint
-     * @param string|null $resource resource class to map individual items
-     * @param bool        $legacy so use v2/v3
+     * @param string $path api endpoint
+     * @param string $resource resource class to map individual items
      *
      * @return mixed Resource|string resource object or XML string if useXml is true
      * @throws \Bigcommerce\Api\Exceptions\ClientException
      * @throws \Bigcommerce\Api\Exceptions\ServerException
      */
-    private static function getResource(string $path, ?string $resource = 'Resource', bool $legacy = false): mixed
+    private static function getResource(string $path, string $resource = 'Resource', $legacy = false): mixed
     {
         $composedPath = $legacy ? self::$legacyApiPath . $path : self::$apiPath . $path;
         $response = self::connection()->get($composedPath);
-        return (null !== $resource) ? self::mapResource($resource, $response) : $response;
+        return self::mapResource($resource, $response);
     }
 
     /**
@@ -358,9 +344,9 @@ class NewClient
      * @throws \Bigcommerce\Api\Exceptions\ClientException
      * @throws \Bigcommerce\Api\Exceptions\ServerException
      */
-    private static function createResource(string $path, array $object, string $resource = 'Resource', bool $legacy = false): Resource
+    private static function createResource(string $path, array $object, string $resource, bool $legacy = false): Resource
     {
-        ray('CreateResource',$path,$object,$resource);
+        ray('CreateResource', $path, $object, $resource);
 
         $composedPath = $legacy ? self::$legacyApiPath . $path : self::$apiPath . $path;
         $post = self::connection()->post($composedPath, $object);
@@ -372,14 +358,15 @@ class NewClient
      *
      * @param string $path api endpoint
      * @param array  $object object or XML string to update
-     * @param string $resource
      * @param bool   $legacy
      *
      * @return \Bigcommerce\Api\Resource|null
+     * @throws \Bigcommerce\Api\Exceptions\ClientException
+     * @throws \Bigcommerce\Api\Exceptions\ServerException
      */
     private static function updateResource(string $path, array $object, string $resource, bool $legacy = false): Resource|null
     {
-        ray('UpdateResource',$path,json_encode($object),$resource);
+        ray('UpdateResource', $path, json_encode($object), $resource);
 
         $composedPath = $legacy ? self::$legacyApiPath . $path : self::$apiPath . $path;
         $put = self::connection()->put($composedPath, $object);
@@ -388,15 +375,16 @@ class NewClient
 
     /**
      * Perform a not-related resource update.
-     *
      * @param string $path
      * @param array  $object
      *
      * @return void
+     * @throws \Bigcommerce\Api\Exceptions\ClientException
+     * @throws \Bigcommerce\Api\Exceptions\ServerException
      */
     private static function updateRaw(string $path, array $object): void
     {
-        ray('UpdateRaw',$path,json_encode($object));
+        ray('UpdateRaw', $path, json_encode($object));
 
         $composedPath = self::$apiPath . $path;
         $put = self::connection()->put($composedPath, $object);
@@ -411,7 +399,7 @@ class NewClient
      */
     private static function deleteResource(string $path): void
     {
-        self::connection()->delete((self::$apiPath ) . $path);
+        self::connection()->delete((self::$apiPath) . $path);
     }
 
     /**************************************************************************
@@ -423,15 +411,16 @@ class NewClient
      *
      * @param string $resource name of the resource class
      * @param mixed  $object object collection
+     * @param bool   $legacy
      *
      * @return array|null
      */
-    private static function mapCollection(string $resource, array $object): array|null
+    private static function mapCollection(string $resource, array $object, bool $legacy = false): array|null
     {
         if (!is_array($object)) return null;
 
         $baseResource = __NAMESPACE__ . '\\' . $resource;
-        self::$resource = ( class_exists($baseResource) ) ? $baseResource : 'Bigcommerce\\Api\\Resources\\' . $resource;
+        self::$resource = (class_exists($baseResource)) ? $baseResource : 'Bigcommerce\\Api\\Resources\\' . $resource;
         return array_map(array(self::class, 'mapCollectionObject'), $object);
     }
 
@@ -442,7 +431,7 @@ class NewClient
      *
      * @return Resource
      */
-    private static function mapCollectionObject($object):Resource
+    private static function mapCollectionObject($object): Resource
     {
         $class = self::$resource;
         return new $class($object);
@@ -456,20 +445,21 @@ class NewClient
      *
      * @return Resource
      */
-    private static function mapResource(string $resource, \stdClass $object):Resource|null
+    private static function mapResource(string $resource, \stdClass $object): Resource|null
     {
+
         if (isset($object->data)) $object = $object->data;
         $baseResource = __NAMESPACE__ . '\\' . $resource;
-        $class = ( class_exists($baseResource) ) ? $baseResource : 'Bigcommerce\\Api\\Resources\\' . $resource;
+        $class = (class_exists($baseResource)) ? $baseResource : 'Bigcommerce\\Api\\Resources\\' . $resource;
         return new $class($object);
     }
 
     /**
      * Map object representing a count to an integer value.
      *
-     * @param array|null $object
+     * @param \stdClass $object
      *
-     * @return int
+     * @return int|false
      */
     private static function mapCount(?array $object): int
     {
@@ -486,24 +476,12 @@ class NewClient
      * Pings the time endpoint to test the connection to a store.
      *
      * @return ?DateTime
-     * @throws \Bigcommerce\Api\Exceptions\ClientException
-     * @throws \Bigcommerce\Api\Exceptions\ServerException
      */
-    public static function getTime():DateTime|null
+    public static function getTime(): DateTime|null
     {
         $response = self::connection()->get(self::$apiUrl . '/time');
         if (empty($response)) return null;
         return new DateTime("@{$response}");
-    }
-
-
-    /**************************************************************************
-     * CURRENT CUSTOMER JWT
-     **************************************************************************/
-
-    static public function getCurrentCustomerJWT(string $applicationKey): array
-    {
-        return self::getResource('customer/current.jwt?app_client_id='.$applicationKey, null, false);
     }
 
     /**************************************************************************
@@ -520,7 +498,7 @@ class NewClient
      */
     static public function createPricelist(array $object): Pricelist
     {
-        return self::createResource('/pricelists', $object,'Pricelist');
+        return self::createResource('/pricelists', $object, 'Pricelist');
     }
 
     /**
@@ -531,9 +509,9 @@ class NewClient
      *
      * @return Pricelist
      */
-    static public function updatePricelist(int $pricelistId, array $object):Pricelist
+    static public function updatePricelist(int $pricelistId, array $object): Pricelist
     {
-        return self::updateResource('/pricelists/' . $pricelistId, $object,'Pricelist');
+        return self::updateResource('/pricelists/' . $pricelistId, $object, 'Pricelist');
     }
 
     /**
@@ -559,17 +537,18 @@ class NewClient
      * @return mixed|\stdClass|null
      */
     public static function upsertPricelistToCustomerGroup(
-        int $pricelistId, int $customerGroupId, int $channelId): void
-    {
+        int $pricelistId,
+        int $customerGroupId,
+        int $channelId
+    ): void {
         $object = [
             'customer_group_id' => $customerGroupId,
             'channel_id' => $channelId,
         ];
 
-        $subpath = '/pricelists/'.$pricelistId.'/assignments';
+        $subpath = '/pricelists/' . $pricelistId . '/assignments';
 
-        self::updateRaw(self::$apiPath.$subpath, $object);
-
+        self::updateRaw(self::$apiPath . $subpath, $object);
     }
 
     /**
@@ -582,7 +561,7 @@ class NewClient
      */
     public static function upsertPricelistRecords(int $pricelistId, array $records): void
     {
-        $subpath = '/pricelists/'.$pricelistId.'/records';
+        $subpath = '/pricelists/' . $pricelistId . '/records';
         self::connection()->put(self::$apiPath . $subpath, $records);
     }
 
@@ -637,7 +616,7 @@ class NewClient
      *
      * @return Resources\Product
      */
-    public static function getProduct($id):Product
+    public static function getProduct($id): Product
     {
         return self::getResource('/catalog/products/' . $id, 'Product');
     }
@@ -651,9 +630,9 @@ class NewClient
      * @throws \Bigcommerce\Api\Exceptions\ClientException
      * @throws \Bigcommerce\Api\Exceptions\ServerException
      */
-    public static function createProduct(array $productFields):Product
+    public static function createProduct(array $productFields): Product
     {
-        return self::createResource('/catalog/products', $productFields,'Product');
+        return self::createResource('/catalog/products', $productFields, 'Product');
     }
 
     /**
@@ -668,7 +647,7 @@ class NewClient
      */
     public static function updateProduct(int $id, array $productFields): Product
     {
-        return self::updateResource('/catalog/products/'. $id, $productFields,'Product');
+        return self::updateResource('/catalog/products/' . $id, $productFields, 'Product');
     }
 
     /**
@@ -824,7 +803,7 @@ class NewClient
      */
     public static function deleteCustomers(array $ids): void
     {
-        self::deleteResource('/customers?id:in='.implode(',',$ids));
+        self::deleteResource('/customers?id:in=' . implode(',', $ids));
     }
 
 
@@ -840,7 +819,9 @@ class NewClient
     public static function getCustomerAddresses(int $id): array
     {
         return self::getCollection(
-            '/customers/' . $id . '/addresses', 'Address');
+            '/customers/' . $id . '/addresses',
+            'Address'
+        );
     }
 
 
@@ -918,7 +899,7 @@ class NewClient
      */
     public static function updateCategory(int $id, array $object): Category
     {
-        return self::updateResource('/catalog/categories/' . $id, $object,'Category');
+        return self::updateResource('/catalog/categories/' . $id, $object, 'Category');
     }
 
     /**
@@ -1067,7 +1048,7 @@ class NewClient
      */
     public static function updateProductCustomField(int $productId, int $customFieldId, arrray $object): ProductCustomField
     {
-        return self::updateResource('/catalog/products/' . $productId. '/custom-fields/' . $customFieldId, $object);
+        return self::updateResource('/catalog/products/' . $productId . '/custom-fields/' . $customFieldId, $object);
     }
 
     /**
@@ -1119,7 +1100,7 @@ class NewClient
             'channel_id' => $channelId,
         ];
 
-        self::connection()->put(self::$apiPath.'/catalog/products/channel-assignments', [$object]);
+        self::connection()->put(self::$apiPath . '/catalog/products/channel-assignments', [$object]);
     }
 
     public static function assignLayoutToProductInChannelId(int $productId, int $channelId, string $layoutFile): void
@@ -1131,7 +1112,7 @@ class NewClient
             'file_name' => $layoutFile,
         ];
 
-        self::connection()->put(self::$apiPath.'/storefront/custom-template-associations', [$object]);
+        self::connection()->put(self::$apiPath . '/storefront/custom-template-associations', [$object]);
     }
 
     /**
@@ -1327,7 +1308,7 @@ class NewClient
     public static function getOrders($filter = array())
     {
         $filter = Filter::create($filter);
-        return self::getCollection('/orders' . $filter->toQuery(), 'Order', legacy: true);
+        return self::getCollection('/orders' . $filter->toQuery(), 'Order');
     }
 
     /**
@@ -1366,7 +1347,7 @@ class NewClient
      */
     public static function getOrder($id)
     {
-        return self::getResource('/orders/' . $id, 'Order', legacy: true);
+        return self::getResource('/orders/' . $id, 'Order');
     }
 
     /**
@@ -1376,7 +1357,7 @@ class NewClient
      */
     public static function getOrderProducts($orderID)
     {
-        return self::getCollection('/orders/' . $orderID . '/products', 'OrderProduct', legacy: true);
+        return self::getCollection('/orders/' . $orderID . '/products', 'OrderProduct');
     }
 
     /**
@@ -1818,7 +1799,7 @@ class NewClient
     public static function getOrderCoupons($orderID, $filter = array())
     {
         $filter = Filter::create($filter);
-        return self::getCollection('/orders/' . $orderID . '/coupons' . $filter->toQuery(), 'OrderCoupons', legacy: true);
+        return self::getCollection('/orders/' . $orderID . '/coupons' . $filter->toQuery(), 'OrderCoupons');
     }
 
     /**
@@ -1845,7 +1826,7 @@ class NewClient
     public static function getOrderShippingAddresses($orderID, $filter = array())
     {
         $filter = Filter::create($filter);
-        return self::getCollection('/orders/' . $orderID . '/shipping_addresses' . $filter->toQuery(), 'Address', legacy: true);
+        return self::getCollection('/orders/' . $orderID . '/shipping_addresses' . $filter->toQuery(), 'Address');
     }
 
     /**
@@ -1920,7 +1901,7 @@ class NewClient
      */
     public static function createProductImage(int $productId, array $object): ProductImage
     {
-        return self::createResource('/catalog/products/' . $productId . '/images', $object,'ProductImage');
+        return self::createResource('/catalog/products/' . $productId . '/images', $object, 'ProductImage');
     }
 
     /**
@@ -1977,7 +1958,7 @@ class NewClient
      */
     public static function createProductVariant(int $productId, array $productVariantFields): ProductVariant
     {
-        return self::createResource('/catalog/products/'.$productId.'/variants', $productVariantFields,'ProductVariant');
+        return self::createResource('/catalog/products/' . $productId . '/variants', $productVariantFields, 'ProductVariant');
     }
 
     /**
@@ -1992,7 +1973,7 @@ class NewClient
      */
     public static function updateProductVariant(int $productId, int $variantId, array $productVariantFields): ProductVariant
     {
-        return self::updateResource('/catalog/products/' . $productId . '/variants/' . $variantId, $productVariantFields,'ProductVariant');
+        return self::updateResource('/catalog/products/' . $productId . '/variants/' . $variantId, $productVariantFields, 'ProductVariant');
     }
 
     /**
@@ -2007,7 +1988,7 @@ class NewClient
      */
     public static function updateProductOption(int $productId, int $productOptionId, array $productOptionFields): Option
     {
-        return self::updateResource('/catalog/products/'.$productId.'/options/'.$productOptionId, $productOptionFields,'Option');
+        return self::updateResource('/catalog/products/' . $productId . '/options/' . $productOptionId, $productOptionFields, 'Option');
     }
 
     /**
@@ -2292,7 +2273,7 @@ class NewClient
             'value' => $value,
         ];
 
-        return self::connection()->put(self::$apiPath_v3.'/customers/attribute-values',[$object]);
+        return self::connection()->put(self::$apiPath_v3 . '/customers/attribute-values', [$object]);
     }
 
     /**
@@ -2341,12 +2322,12 @@ class NewClient
      */
     public static function getCustomerGroup(int $id): CustomerGroup
     {
-        return self::getResource('/customer_groups/' . $id, 'CustomerGroup',true);
+        return self::getResource('/customer_groups/' . $id, 'CustomerGroup', true);
     }
 
     public static function updateCustomerGroup(int $id, array $object): CustomerGroup
     {
-        return self::updateResource('/customer_groups/' . $id, $object, 'CustomerGroup',true);
+        return self::updateResource('/customer_groups/' . $id, $object, 'CustomerGroup', true);
     }
 
     /**
@@ -2380,7 +2361,7 @@ class NewClient
      */
     public static function getProductOptions($productId,)
     {
-        return self::getCollection('/catalog/products/'.$productId.'/options', "ProductOption");
+        return self::getCollection('/catalog/products/' . $productId . '/options', "ProductOption");
     }
 
     public static function setProductOptions($productId, $optionId, $object, $v = "V2")
@@ -2403,7 +2384,7 @@ class NewClient
      */
     public static function createProductOption(int $productId, array $optionData): ProductOption
     {
-        return self::createResource('/catalog/products/'.$productId.'/options', $optionData, 'ProductOption');
+        return self::createResource('/catalog/products/' . $productId . '/options', $optionData, 'ProductOption');
     }
 
     /**
@@ -2464,7 +2445,7 @@ class NewClient
      *
      * @return mixed
      */
-    public static function updateOptionValue($optionId, $optionValueId, $object):OptionValue
+    public static function updateOptionValue($optionId, $optionValueId, $object): OptionValue
     {
         return self::updateResource(
             '/options/' . $optionId . '/values/' . $optionValueId,
@@ -2485,12 +2466,12 @@ class NewClient
      */
     public static function updateProductOptionValue(int $productId, int $optionId, int $optionValueId, array $optionValueFields): OptionValue
     {
-        return self::updateResource('/catalog/products/'.$productId.'/options/'.$optionId.'/values/'.$optionValueId, $optionValueFields,'OptionValue');
+        return self::updateResource('/catalog/products/' . $productId . '/options/' . $optionId . '/values/' . $optionValueId, $optionValueFields, 'OptionValue');
     }
 
     public static function createProductOptionValue(int $productId, int $optionId, array $optionValueFields): OptionValue
     {
-        return self::createResource('/catalog/products/'.$productId.'/options/'.$optionId.'/values', $optionValueFields,'OptionValue');
+        return self::createResource('/catalog/products/' . $productId . '/options/' . $optionId . '/values', $optionValueFields, 'OptionValue');
     }
 
     /**
@@ -2679,5 +2660,88 @@ class NewClient
     {
         $filter = Filter::create($filter);
         return self::getCollection('/products/' . $productId . '/rules' . $filter->toQuery(), 'Rule');
+    }
+
+
+    /**
+     * ************************************************
+     * CARTS
+     * ************************************************
+     */
+
+    /**
+     * Get a Cart by the given BigCommerce ID
+     *
+     * @param string $cartId
+     * @return mixed
+     */
+    public static function getCart(string $cartId): mixed
+    {
+        try {
+            return static::getResource('/carts/' . $cartId);
+        } catch (Throwable $e) {
+            return null;
+        }
+    }
+
+    /**
+     * Create a Cart
+     *
+     * @param array $params
+     */
+    public static function createCart(array $params)
+    {
+        return static::createResource('/carts', $params, 'Resource');
+    }
+
+    /**
+     * Delete a Cart by the given BigCommerce ID
+     *
+     * @param string $cartId
+     */
+    public static function deleteCart(string $cartId)
+    {
+        static::deleteResource('/carts/' . $cartId);
+    }
+
+    /**
+     * ************************************************
+     * CARTS LINE ITEMS
+     * ************************************************
+     */
+
+    /**
+     * Adds line item to the Cart
+     *
+     * @param string $cartId
+     * @param array $params
+     */
+    public static function addCartLineItems(string $cartId, array $params)
+    {
+        return static::createResource('/carts/' . $cartId . '/items', $params, 'Resource');
+    }
+
+    /**
+     * Updates an existing, single line item in the Cart
+     *
+     * @param string $cartId
+     * @param string $itemId
+     * @param array $params
+     */
+    public static function updateCartLineItems(string $cartId, string $itemId, array $params)
+    {
+        return static::updateResource('/carts/' . $cartId . '/items/' . $itemId, $params, 'Resource');
+    }
+
+    /**
+     * Deletes a Cart line item.
+     * Removing the last line_item in the Cart deletes the Cart
+     *
+     * @param string $cartId
+     * @param string $itemId
+     */
+    public static function deleteCartLineItems(string $cartId, string $itemId)
+    {
+        return static::deleteResource('/carts/' . $cartId . '/items/' . $itemId, 'Resource');
     }
 }
