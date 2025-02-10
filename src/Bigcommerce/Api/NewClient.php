@@ -297,7 +297,6 @@ class NewClient
                 if (!isset($pagination->links->next)) $needsNext = false;
             }
         }
-
         return self::mapCollection($resource, $data, $legacy);
     }
 
@@ -616,9 +615,10 @@ class NewClient
      *
      * @return Resources\Product
      */
-    public static function getProduct($id): Product
+    public static function getProduct($id, array $filter = []): Product
     {
-        return self::getResource('/catalog/products/' . $id, 'Product');
+        $filter = Filter::create($filter);
+        return self::getResource('/catalog/products/' . $id . $filter->toQuery(), 'Product');
     }
 
     /**
@@ -1223,7 +1223,7 @@ class NewClient
     public static function getBrands($filter = array())
     {
         $filter = Filter::create($filter);
-        return self::getCollection('/brands' . $filter->toQuery(), 'Brand');
+        return self::getCollection('/catalog/brands' . $filter->toQuery(), 'Brand');
     }
 
     /**
@@ -1248,7 +1248,7 @@ class NewClient
      */
     public static function getBrand($id)
     {
-        return self::getResource('/brands/' . $id, 'Brand');
+        return self::getResource('/catalog/brands/' . $id, 'Brand');
     }
 
     /**
@@ -2743,5 +2743,33 @@ class NewClient
     public static function deleteCartLineItems(string $cartId, string $itemId)
     {
         return static::deleteResource('/carts/' . $cartId . '/items/' . $itemId, 'Resource');
+    }
+
+
+    /**
+     * WIDGETS
+     */
+
+    /**
+     * Get all widgets
+     *
+     * @param array $filter
+     * @return array
+     */
+    public static function getWidgets(array $filter = []): array
+    {
+        $filter = Filter::create($filter);
+        return self::getCollection('/content/widgets' . $filter->toQuery());
+    }
+
+    /**
+     * Get a widget by the given uuid
+     *
+     * @param string $uuid
+     * @return mixed
+     */
+    public static function getWidget(string $uuid): mixed
+    {
+        return self::getResource('/content/widgets/' . $uuid);
     }
 }
