@@ -139,4 +139,9 @@ class Resource
 
         return false;
     }
+
+    public function getFields(): \stdClass
+    {
+        return $this->fields;
+    }
 }

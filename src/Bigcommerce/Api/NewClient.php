@@ -3,6 +3,8 @@
 namespace Bigcommerce\Api;
 
 use Bigcommerce\Api\Exceptions\ClientException;
+use Bigcommerce\Api\Resources\Address;
+use Bigcommerce\Api\Resources\Brand;
 use Bigcommerce\Api\Resources\Category;
 use Bigcommerce\Api\Resources\CategoryTree;
 use Bigcommerce\Api\Resources\Customer;
@@ -11,6 +13,9 @@ use Bigcommerce\Api\Resources\CustomerGroup;
 use Bigcommerce\Api\Resources\Location;
 use Bigcommerce\Api\Resources\Option;
 use Bigcommerce\Api\Resources\OptionValue;
+use Bigcommerce\Api\Resources\Order;
+use Bigcommerce\Api\Resources\OrderCoupons;
+use Bigcommerce\Api\Resources\OrderProduct;
 use Bigcommerce\Api\Resources\Pricelist;
 use Bigcommerce\Api\Resources\ProductCustomField;
 use Bigcommerce\Api\Resources\ProductImage;
@@ -24,8 +29,6 @@ use Firebase\JWT\JWT;
 use GuzzleHttp\Client;
 use phpDocumentor\Reflection\Types\Self_;
 use Sabre\DAV\Collection;
-use Throwable;
-
 use function Symfony\Component\String\s;
 
 /**
@@ -116,10 +119,10 @@ class NewClient
     private static $authToken;
 
     /**
-     * @var string $clientSecret The OAuth client secret
+     * @var ?string $clientSecret The OAuth client secret
      * @static
      */
-    private static string $clientSecret;
+    private static ?string $clientSecret;
 
     /**
      * @var bool The direcrive to verify peer
@@ -159,7 +162,7 @@ class NewClient
     /**
      * Configure the API client with the required Oauth/BasicAuth credentials.
      *
-     * @param array  $settings
+     * @param array $settings
      *
      * @return void
      * @throws \Bigcommerce\Api\Exceptions\ClientException
@@ -169,6 +172,21 @@ class NewClient
     {
         self::configureBaseSettings($settings);
         self::$connectionMode === self::OAUTH_MODE ? self::configureOAuth($settings) : self::configureBasicAuth($settings);
+    }
+
+    /**
+     * Swaps a temporary access code for a long expiry auth token.
+     *
+     * @param \stdClass|array $object
+     *
+     * @return \stdClass
+     */
+    public static function getAuthToken($object)
+    {
+        $context = array_merge(array('grant_type' => 'authorization_code'), (array)$object);
+        $connection = new NewConnection();
+
+        return $connection->post(self::$loginUrl . '/oauth2/token', $context);
     }
 
     /**
@@ -273,9 +291,9 @@ class NewClient
     /**
      * Get a collection result from the specified endpoint.
      *
-     * @param string                                  $pathWithLeadingSlash
+     * @param string $pathWithLeadingSlash
      * @param \Bigcommerce\Api\Resources\ResourceEnum $resource resource class to map individual items
-     * @param bool                                    $legacy
+     * @param bool $legacy
      *
      * @return array Mapped collection
      * @throws \Bigcommerce\Api\Exceptions\ClientException
@@ -283,8 +301,14 @@ class NewClient
      */
     private static function getCollection(string $pathWithLeadingSlash, string $resource = 'Resource', bool $legacy = false): array
     {
-        $needsNext = false;
-        $response = self::connection()->get(self::$apiPath . $pathWithLeadingSlash);
+        $composedPath = $legacy ? self::$legacyApiPath : self::$apiPath;
+
+        $response = self::connection()->get(url: $composedPath . $pathWithLeadingSlash);
+
+        if ($legacy) {
+            return self::mapCollection($resource, $response);
+        }
+
         $data = $response->data;
         $pagination = $response->meta->pagination;
         if (isset($pagination->links->next)) {
@@ -297,6 +321,7 @@ class NewClient
                 if (!isset($pagination->links->next)) $needsNext = false;
             }
         }
+
         return self::mapCollection($resource, $data, $legacy);
     }
 
@@ -343,7 +368,7 @@ class NewClient
      * @throws \Bigcommerce\Api\Exceptions\ClientException
      * @throws \Bigcommerce\Api\Exceptions\ServerException
      */
-    private static function createResource(string $path, array $object, string $resource, bool $legacy = false): Resource
+    private static function createResource(string $path, array $object, string $resource = 'Resource', bool $legacy = false): Resource
     {
         ray('CreateResource', $path, $object, $resource);
 
@@ -356,8 +381,8 @@ class NewClient
      * Send a put request to update the specified resource.
      *
      * @param string $path api endpoint
-     * @param array  $object object or XML string to update
-     * @param bool   $legacy
+     * @param array $object object or XML string to update
+     * @param bool $legacy
      *
      * @return \Bigcommerce\Api\Resource|null
      * @throws \Bigcommerce\Api\Exceptions\ClientException
@@ -375,7 +400,7 @@ class NewClient
     /**
      * Perform a not-related resource update.
      * @param string $path
-     * @param array  $object
+     * @param array $object
      *
      * @return void
      * @throws \Bigcommerce\Api\Exceptions\ClientException
@@ -409,8 +434,8 @@ class NewClient
      * Internal method to wrap items in a collection to resource classes.
      *
      * @param string $resource name of the resource class
-     * @param mixed  $object object collection
-     * @param bool   $legacy
+     * @param mixed $object object collection
+     * @param bool $legacy
      *
      * @return array|null
      */
@@ -439,7 +464,7 @@ class NewClient
     /**
      * Map a single object to a resource class.
      *
-     * @param string    $resource name of the resource class
+     * @param string $resource name of the resource class
      * @param \stdClass $object
      *
      * @return Resource
@@ -536,10 +561,8 @@ class NewClient
      * @return mixed|\stdClass|null
      */
     public static function upsertPricelistToCustomerGroup(
-        int $pricelistId,
-        int $customerGroupId,
-        int $channelId
-    ): void {
+        int $pricelistId, int $customerGroupId, int $channelId): void
+    {
         $object = [
             'customer_group_id' => $customerGroupId,
             'channel_id' => $channelId,
@@ -548,6 +571,7 @@ class NewClient
         $subpath = '/pricelists/' . $pricelistId . '/assignments';
 
         self::updateRaw(self::$apiPath . $subpath, $object);
+
     }
 
     /**
@@ -615,10 +639,9 @@ class NewClient
      *
      * @return Resources\Product
      */
-    public static function getProduct($id, array $filter = []): Product
+    public static function getProduct($id): Product
     {
-        $filter = Filter::create($filter);
-        return self::getResource('/catalog/products/' . $id . $filter->toQuery(), 'Product');
+        return self::getResource('/catalog/products/' . $id, 'Product');
     }
 
     /**
@@ -638,7 +661,7 @@ class NewClient
     /**
      * Update the given product.
      *
-     * @param int   $id product id
+     * @param int $id product id
      * @param array $object fields to update
      *
      * @return Product
@@ -819,9 +842,7 @@ class NewClient
     public static function getCustomerAddresses(int $id): array
     {
         return self::getCollection(
-            '/customers/' . $id . '/addresses',
-            'Address'
-        );
+            '/customers/' . $id . '/addresses', 'Address');
     }
 
 
@@ -890,8 +911,8 @@ class NewClient
     /**
      * Update the given category.
      *
-     * @param int  $id Category id
-     * @param array  $object Category data
+     * @param int $id Category id
+     * @param array $object Category data
      *
      * @return Category
      * @throws \Bigcommerce\Api\Exceptions\ClientException
@@ -966,7 +987,7 @@ class NewClient
     /**
      * Update the given location.
      *
-     * @param int   $id product id
+     * @param int $id product id
      * @param array $object fields to update
      *
      * @return Location
@@ -1015,7 +1036,7 @@ class NewClient
     /**
      * Create a new custom field for a given product.
      *
-     * @param int   $product_id product id
+     * @param int $product_id product id
      * @param mixed $object fields to create
      *
      * @return Object Object with `id`, `product_id`, `name` and `text` keys
@@ -1040,8 +1061,8 @@ class NewClient
     /**
      * Update the given custom field.
      *
-     * @param int   $product_id product id
-     * @param int   $id custom field id
+     * @param int $product_id product id
+     * @param int $id custom field id
      * @param mixed $object custom field to update
      *
      * @return mixed
@@ -1143,7 +1164,7 @@ class NewClient
     /**
      * Update the given option.
      *
-     * @param int   $id category id
+     * @param int $id category id
      * @param mixed $object
      *
      * @return mixed
@@ -1218,9 +1239,9 @@ class NewClient
      *
      * @param array $filter
      *
-     * @return array
+     * @return Brand[]
      */
-    public static function getBrands($filter = array())
+    public static function getBrands(array $filter = []): array
     {
         $filter = Filter::create($filter);
         return self::getCollection('/catalog/brands' . $filter->toQuery(), 'Brand');
@@ -1244,9 +1265,9 @@ class NewClient
      *
      * @param int $id brand id
      *
-     * @return Resources\Brand
+     * @return Brand
      */
-    public static function getBrand($id)
+    public static function getBrand(int $id): Brand
     {
         return self::getResource('/catalog/brands/' . $id, 'Brand');
     }
@@ -1256,24 +1277,24 @@ class NewClient
      *
      * @param mixed $object
      *
-     * @return mixed
+     * @return Brand
      */
-    public static function createBrand($object)
+    public static function createBrand($object): Brand
     {
-        return self::createResource('/brands', $object);
+        return self::createResource('/catalog/brands', $object, 'Brand');
     }
 
     /**
      * Update the given brand.
      *
-     * @param int   $id brand id
+     * @param int $id brand id
      * @param mixed $object
      *
-     * @return mixed
+     * @return Brand
      */
-    public static function updateBrand($id, $object)
+    public static function updateBrand(int $id, $object): Brand
     {
-        return self::updateResource('/brands/' . $id, $object);
+        return self::updateResource('/catalog/brands/' . $id, $object, 'Brand');
     }
 
     /**
@@ -1281,21 +1302,21 @@ class NewClient
      *
      * @param int $id brand id
      *
-     * @return mixed
+     * @return void
      */
-    public static function deleteBrand($id)
+    public static function deleteBrand(int $id): void
     {
-        return self::deleteResource('/brands/' . $id);
+        self::deleteResource('/catalog/brands/' . $id);
     }
 
     /**
      * Delete all brands.
      *
-     * @return mixed
+     * @return void
      */
-    public static function deleteAllBrands()
+    public static function deleteAllBrands(): void
     {
-        return self::deleteResource('/brands');
+        self::deleteResource('/catalog/brands');
     }
 
     /**
@@ -1303,12 +1324,12 @@ class NewClient
      *
      * @param array $filter
      *
-     * @return array
+     * @return array<Order>
      */
-    public static function getOrders($filter = array())
+    public static function getOrders(array $filter = []): array
     {
         $filter = Filter::create($filter);
-        return self::getCollection('/orders' . $filter->toQuery(), 'Order');
+        return self::getCollection('/orders' . $filter->toQuery(), 'Order', legacy: true);
     }
 
     /**
@@ -1318,10 +1339,10 @@ class NewClient
      *
      * @return int
      */
-    public static function getOrdersCount($filter = array())
+    public static function getOrdersCount(array $filter = [])
     {
         $filter = Filter::create($filter);
-        return self::getCount('/orders/count' . $filter->toQuery());
+        return self::getCount('/orders/count' . $filter->toQuery(), legacy: true);
     }
 
     /**
@@ -1331,10 +1352,10 @@ class NewClient
      *
      * @return Resources\OrderStatus
      */
-    public static function getOrderStatusesWithCounts($filter = array())
+    public static function getOrderStatusesWithCounts(array $filter = [])
     {
         $filter = Filter::create($filter);
-        $resource = self::getResource('/orders/count' . $filter->toQuery(), "OrderStatus");
+        $resource = self::getResource('/orders/count' . $filter->toQuery(), "OrderStatus", legacy: true);
         return $resource->statuses;
     }
 
@@ -1345,19 +1366,19 @@ class NewClient
      *
      * @return Resources\Order
      */
-    public static function getOrder($id)
+    public static function getOrder(int $id): Order
     {
-        return self::getResource('/orders/' . $id, 'Order');
+        return self::getResource('/orders/' . $id, 'Order', legacy: true);
     }
 
     /**
      * @param $orderID
      *
-     * @return mixed
+     * @return array<OrderProduct>
      */
-    public static function getOrderProducts($orderID)
+    public static function getOrderProducts(int $orderID): array
     {
-        return self::getCollection('/orders/' . $orderID . '/products', 'OrderProduct');
+        return self::getCollection('/orders/' . $orderID . '/products', 'OrderProduct', legacy: true);
     }
 
     /**
@@ -1368,10 +1389,10 @@ class NewClient
      *
      * @return mixed
      */
-    public static function getOrderProductsCount($orderID, $filter = array())
+    public static function getOrderProductsCount(int $orderID, array $filter = [])
     {
         $filter = Filter::create($filter);
-        return self::getCount('/orders/' . $orderID . '/products/count' . $filter->toQuery());
+        return self::getCount('/orders/' . $orderID . '/products/count' . $filter->toQuery(), legacy: true);
     }
 
     /**
@@ -1380,21 +1401,21 @@ class NewClient
      *
      * @param int $id order id
      *
-     * @return mixed
+     * @return void
      */
-    public static function deleteOrder($id)
+    public static function deleteOrder(int $id): void
     {
-        return self::deleteResource('/orders/' . $id);
+        self::deleteResource('/orders/' . $id);
     }
 
     /**
      * Delete all orders.
      *
-     * @return mixed
+     * @return void
      */
-    public static function deleteAllOrders()
+    public static function deleteAllOrders(): void
     {
-        return self::deleteResource('/orders');
+        self::deleteResource('/orders');
     }
 
     /**
@@ -1412,7 +1433,7 @@ class NewClient
     /**
      * Update the given order.
      *
-     * @param int   $id order id
+     * @param int $id order id
      * @param mixed $object fields to update
      *
      * @return mixed
@@ -1486,7 +1507,7 @@ class NewClient
     /**
      * Update the given option set.
      *
-     * @param int   $id option set id
+     * @param int $id option set id
      * @param mixed $object
      *
      * @return mixed
@@ -1794,12 +1815,12 @@ class NewClient
      * @param       $orderID
      * @param array $filter
      *
-     * @return mixed
+     * @return array<OrderCoupons>
      */
-    public static function getOrderCoupons($orderID, $filter = array())
+    public static function getOrderCoupons($orderID, array $filter = []): array
     {
         $filter = Filter::create($filter);
-        return self::getCollection('/orders/' . $orderID . '/coupons' . $filter->toQuery(), 'OrderCoupons');
+        return self::getCollection('/orders/' . $orderID . '/coupons' . $filter->toQuery(), 'OrderCoupons', legacy: true);
     }
 
     /**
@@ -1821,12 +1842,12 @@ class NewClient
      * @param       $orderID
      * @param array $filter
      *
-     * @return mixed
+     * @return array<Address>
      */
-    public static function getOrderShippingAddresses($orderID, $filter = array())
+    public static function getOrderShippingAddresses(int $orderID, array $filter = []): array
     {
         $filter = Filter::create($filter);
-        return self::getCollection('/orders/' . $orderID . '/shipping_addresses' . $filter->toQuery(), 'Address');
+        return self::getCollection('/orders/' . $orderID . '/shipping_addresses' . $filter->toQuery(), 'Address', legacy: true);
     }
 
     /**
@@ -1856,7 +1877,7 @@ class NewClient
     /**
      * Update the given currency.
      *
-     * @param int   $id currency id
+     * @param int $id currency id
      * @param mixed $object fields to update
      *
      * @return mixed
@@ -1909,7 +1930,7 @@ class NewClient
      *
      * @param string $productId
      * @param string $imageId
-     * @param mixed  $object
+     * @param mixed $object
      *
      * @return mixed
      */
@@ -1950,7 +1971,7 @@ class NewClient
     /**
      * Create a new product variant
      *
-     * @param int   $productId
+     * @param int $productId
      * @param array $productVariantFields
      *
      * @return \Bigcommerce\Api\Resources\ProductVariant
@@ -1964,8 +1985,8 @@ class NewClient
     /**
      * Update a product variant
      *
-     * @param int   $productId
-     * @param int   $variantId
+     * @param int $productId
+     * @param int $variantId
      * @param array $productVariantFields
      *
      * @return \Bigcommerce\Api\Resources\ProductVariant
@@ -1979,8 +2000,8 @@ class NewClient
     /**
      * Update an existing product option
      *
-     * @param int   $productId
-     * @param int   $productOptionId
+     * @param int $productId
+     * @param int $productOptionId
      * @param array $productOptionFields
      *
      * @return \Bigcommerce\Api\Resources\Option
@@ -2129,7 +2150,7 @@ class NewClient
     /**
      * Update a Gift Certificate
      *
-     * @param int   $giftCertificateId
+     * @param int $giftCertificateId
      * @param array $object
      *
      * @return mixed
@@ -2164,7 +2185,7 @@ class NewClient
     /**
      * Create Product Review
      *
-     * @param int   $productId
+     * @param int $productId
      * @param array $object
      *
      * @return mixed
@@ -2178,7 +2199,7 @@ class NewClient
      * Create Product Bulk Discount rules
      *
      * @param string $productId
-     * @param array  $object
+     * @param array $object
      *
      * @return mixed
      */
@@ -2234,7 +2255,7 @@ class NewClient
     /**
      * Update an existing banner
      *
-     * @param int   $bannerID
+     * @param int $bannerID
      * @param array $object
      *
      * @return mixed
@@ -2247,7 +2268,7 @@ class NewClient
     /**
      * Add a address to the customer's address book.
      *
-     * @param int   $customerID
+     * @param int $customerID
      * @param array $object
      *
      * @return mixed
@@ -2279,7 +2300,7 @@ class NewClient
     /**
      * Create a product rule
      *
-     * @param int   $productID
+     * @param int $productID
      * @param array $object
      *
      * @return mixed
@@ -2359,7 +2380,7 @@ class NewClient
      *
      * @return mixed
      */
-    public static function getProductOptions($productId,)
+    public static function getProductOptions($productId)
     {
         return self::getCollection('/catalog/products/' . $productId . '/options', "ProductOption");
     }
@@ -2374,11 +2395,11 @@ class NewClient
     /**
      * Create a product option
      *
-     * @param int    $productId
+     * @param int $productId
      * @param string $name
      * @param string $type
      * @param string $displayName
-     * @param array  $optionValues
+     * @param array $optionValues
      *
      * @return ProductOption
      */
@@ -2416,7 +2437,7 @@ class NewClient
     /**
      * Return the option value object that was created.
      *
-     * @param int   $optionId
+     * @param int $optionId
      * @param array $object
      *
      * @return mixed
@@ -2439,8 +2460,8 @@ class NewClient
     /**
      * Return the option value object that was updated.
      *
-     * @param int   $optionId
-     * @param int   $optionValueId
+     * @param int $optionId
+     * @param int $optionValueId
      * @param array $object
      *
      * @return mixed
@@ -2456,9 +2477,9 @@ class NewClient
     /**
      * Create a product option value
      *
-     * @param int   $productId
-     * @param int   $optionId
-     * @param int   $optionValueId
+     * @param int $productId
+     * @param int $optionId
+     * @param int $optionValueId
      * @param array $optionValueFields
      *
      * @return \Bigcommerce\Api\Resources\OptionValue
@@ -2511,7 +2532,7 @@ class NewClient
     /**
      * Updates the given webhook.
      *
-     * @param int   $id
+     * @param int $id
      * @param mixed $object object or XML string to create
      *
      * @return mixed
@@ -2637,7 +2658,7 @@ class NewClient
     /**
      * Return the collection of all option values By OptionID
      *
-     * @param int   $optionId
+     * @param int $optionId
      * @param array $filter
      *
      * @return array
@@ -2651,7 +2672,7 @@ class NewClient
     /**
      * Get collection of product rules by ProductId
      *
-     * @param int   $productId
+     * @param int $productId
      * @param array $filter
      *
      * @return mixed
@@ -2661,7 +2682,6 @@ class NewClient
         $filter = Filter::create($filter);
         return self::getCollection('/products/' . $productId . '/rules' . $filter->toQuery(), 'Rule');
     }
-
 
     /**
      * ************************************************
@@ -2754,11 +2774,12 @@ class NewClient
      * Get all widgets
      *
      * @param array $filter
-     * @return array
+     * @return Resource[]
      */
     public static function getWidgets(array $filter = []): array
     {
         $filter = Filter::create($filter);
+
         return self::getCollection('/content/widgets' . $filter->toQuery());
     }
 
@@ -2766,9 +2787,9 @@ class NewClient
      * Get a widget by the given uuid
      *
      * @param string $uuid
-     * @return mixed
+     * @return Resource
      */
-    public static function getWidget(string $uuid): mixed
+    public static function getWidget(string $uuid): Resource
     {
         return self::getResource('/content/widgets/' . $uuid);
     }
