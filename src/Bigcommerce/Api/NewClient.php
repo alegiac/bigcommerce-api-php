@@ -299,6 +299,7 @@ class NewClient
      * @throws \Bigcommerce\Api\Exceptions\ClientException
      * @throws \Bigcommerce\Api\Exceptions\ServerException
      */
+    /*
     private static function getCollection(string $pathWithLeadingSlash, string $resource = 'Resource', bool $legacy = false): array
     {
         $composedPath = $legacy ? self::$legacyApiPath : self::$apiPath;
@@ -319,6 +320,55 @@ class NewClient
                 $data = array_merge($data, $response->data);
                 $pagination = $response->meta->pagination;
                 if (!isset($pagination->links->next)) $needsNext = false;
+            }
+        }
+
+        return self::mapCollection($resource, $data, $legacy);
+    }
+
+    */
+
+    private static function getCollection(string $pathWithLeadingSlash, string $resource = 'Resource', bool $legacy = false): array
+    {
+        $composedPath = $legacy ? self::$legacyApiPath : self::$apiPath;
+
+        $response = self::connection()->get(url: $composedPath . $pathWithLeadingSlash);
+
+        if ($legacy) {
+            return self::mapCollection($resource, $response);
+        }
+
+        $data = $response->data;
+        $pagination = $response->meta->pagination;
+        if (isset($pagination->links->next)) {
+            $needsNext = true;
+            while ($needsNext) {
+                $next = $pagination->links->next;
+                $response = self::connection()->get(self::$apiPath . $pathWithLeadingSlash . $next);
+                $data = array_merge($data, $response->data);
+                $pagination = $response->meta->pagination;
+                if (!isset($pagination->links->next)) $needsNext = false;
+            }
+        } elseif ($pagination->total_pages > $pagination->current_page) {
+            $needsNext = true;
+            while ($needsNext) {
+                $url = parse_url($pathWithLeadingSlash);
+                $params = [];
+
+                if (isset($url['query'])) {
+                    foreach (explode('&', $url['query']) as $value) {
+                        list($k, $v) = explode('=', $value);
+                        $params[$k] = $v;
+                    }
+                }
+                $query = '?' . http_build_query(array_merge($params, [
+                        'page' => $pagination->current_page + 1,
+                    ]));
+
+                $response = self::connection()->get(self::$apiPath . $url['path'] . $query);
+                $data = array_merge($data, $response->data);
+                $pagination = $response->meta->pagination;
+                if ($pagination->total_pages <= $pagination->current_page) $needsNext = false;
             }
         }
 
@@ -639,9 +689,15 @@ class NewClient
      *
      * @return Resources\Product
      */
-    public static function getProduct($id): Product
+    //public static function getProduct($id): Product
+    //{
+    //    return self::getResource('/catalog/products/' . $id, 'Product');
+    //}
+
+    public static function getProduct($id, array $filter = []): Product
     {
-        return self::getResource('/catalog/products/' . $id, 'Product');
+        $filter = Filter::create($filter);
+        return self::getResource('/catalog/products/' . $id . $filter->toQuery(), 'Product');
     }
 
     /**
