@@ -689,11 +689,6 @@ class NewClient
      *
      * @return Resources\Product
      */
-    //public static function getProduct($id): Product
-    //{
-    //    return self::getResource('/catalog/products/' . $id, 'Product');
-    //}
-
     public static function getProduct($id, array $filter = []): Product
     {
         $filter = Filter::create($filter);
@@ -2778,6 +2773,17 @@ class NewClient
     public static function deleteCart(string $cartId)
     {
         static::deleteResource('/carts/' . $cartId);
+    }
+
+    /**
+     * ************************************************
+     * CARTS META FIELDS
+     * ************************************************
+     */
+
+    public static function getCartMetaFields(string $cartId)
+    {
+        return static::getCollection('/carts/' . $cartId . '/metafields', 'Resource');
     }
 
     /**
