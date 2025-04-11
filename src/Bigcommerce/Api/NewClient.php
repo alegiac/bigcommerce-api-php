@@ -1491,7 +1491,7 @@ class NewClient
      */
     public static function updateOrder($id, $object)
     {
-        return self::updateResource('/orders/' . $id, $object);
+        return self::updateResource('/orders/'.$id, $object,'Order');
     }
 
 
