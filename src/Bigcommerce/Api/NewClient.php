@@ -1423,13 +1423,17 @@ class NewClient
     }
 
     /**
-     * @param $orderID
+     * @param int   $orderID
+     * @param array $filter
      *
      * @return array<OrderProduct>
+     * @throws \Bigcommerce\Api\Exceptions\ClientException
+     * @throws \Bigcommerce\Api\Exceptions\ServerException
      */
-    public static function getOrderProducts(int $orderID): array
+    public static function getOrderProducts(int $orderID, array $filter = []): array
     {
-        return self::getCollection('/orders/' . $orderID . '/products', 'OrderProduct', legacy: true);
+        $filter = Filter::create($filter);
+        return self::getCollection('/orders/' . $orderID . '/products' . $filter->toQuery(), 'OrderProduct', legacy: true);
     }
 
     /**
